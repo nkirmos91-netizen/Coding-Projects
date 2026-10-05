@@ -226,3 +226,5 @@ if barstate.islast
                 table.cell(tbl, 2, r + 1, str.tostring(z.bot, format.mintick) + " – " + str.tostring(z.top, format.mintick), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 3, r + 1, str.tostring(dist, "#.##"), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 4, r + 1, str.tostring(z.bodyPct, "#"), text_color = color.white, bgcolor = bg, text_size = size.small)
+
+// ── END OF SCRIPT ── if you can read this line in Pine Editor, the whole file was pasted.
