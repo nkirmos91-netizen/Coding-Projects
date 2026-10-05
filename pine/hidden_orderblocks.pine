@@ -85,7 +85,7 @@ if barstate.isconfirmed and bar_index >= 2
             bool bearCover = pLow >= z.top and high <= z.bot
             bool bullCover = pHigh <= z.bot and low >= z.top
             if bearCover or bullCover
-                z.hidden += 1
+                z.hidden := z.hidden + 1
                 z.fvgTimes.push(mTime)
                 z.fvgPrices.push(bearCover ? mHigh : mLow)
                 z.fvgBear.push(bearCover)
