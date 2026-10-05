@@ -24,6 +24,11 @@ float minBodyPct = input.float(20.0, "Min body size (% of candle range)", minval
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
      tooltip = "Performance cap. When exceeded, the oldest candidate that is not hidden yet is dropped.")
 
+float maxDistPct = input.float(50, "Max distance from price %", minval = 0, step = 5, group = G_DET,
+     tooltip = "Hide zones further than this from current price (0 = no limit).")
+int   lookback   = input.int(0, "Lookback (bars)", minval = 0, group = G_DET,
+     tooltip = "Only show zones formed in the last N bars (0 = all loaded history).")
+
 const string G_VIS = "Display"
 bool  showBear  = input.bool(true, "Show bearish (above price)", group = G_VIS)
 bool  showBull  = input.bool(true, "Show bullish (below price)", group = G_VIS)
@@ -118,34 +123,11 @@ if barstate.isconfirmed and bar_index >= 2
                         break
                 active.remove(drop)
 
-// -- Summary values (data window / Pine Screener / alerts)
-int   bearHidden = na
-float bearDist   = na
-int   bullHidden = na
-float bullDist   = na
-int   maxHidden  = 0
-bool  tapping    = false
+// -- Live tap check (alerts)
+bool tapping = false
 for z in active
-    if z.hidden >= minHidden
-        maxHidden := math.max(maxHidden, z.hidden)
-        if bar_index > z.barIdx + 1 and high > z.bot and low < z.top
-            tapping := true
-        if z.bot > close
-            float d = (z.bot - close) / close * 100
-            if na(bearDist) or d < bearDist
-                bearDist   := d
-                bearHidden := z.hidden
-        else if z.top < close
-            float d = (close - z.top) / close * 100
-            if na(bullDist) or d < bullDist
-                bullDist   := d
-                bullHidden := z.hidden
-
-plot(maxHidden,  "Max hidden count",            display = display.data_window)
-plot(bearHidden, "Nearest bearish HOB: hidden", display = display.data_window)
-plot(bearDist,   "Nearest bearish HOB: dist %", display = display.data_window)
-plot(bullHidden, "Nearest bullish HOB: hidden", display = display.data_window)
-plot(bullDist,   "Nearest bullish HOB: dist %", display = display.data_window)
+    if z.hidden >= minHidden and bar_index > z.barIdx + 1 and high > z.bot and low < z.top
+        tapping := true
 
 alertcondition(levelUp,      "Hidden OB formed / level up", "{{ticker}} {{interval}}: a hidden orderblock gained a hidden level")
 alertcondition(tapping,      "Price tapping a hidden OB",   "{{ticker}} {{interval}}: price is trading into a hidden orderblock")
@@ -182,8 +164,10 @@ if barstate.islast
     array<Zone>  shown  = array.new<Zone>()
     array<float> scores = array.new<float>()
     for z in active
-        if z.hidden >= minHidden
-            bool isBear = (z.top + z.bot) / 2 > close
+        bool  isBear  = (z.top + z.bot) / 2 > close
+        float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
+        bool  inRange = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
+        if z.hidden >= minHidden and inRange
             if (isBear and showBear) or (not isBear and showBull)
                 color base   = isBear ? bearCol : bullCol
                 bool  liveIn = bar_index > z.barIdx + 1 and high > z.bot and low < z.top
@@ -201,9 +185,8 @@ if barstate.islast
                              style = fb ? label.style_label_down : label.style_label_up, color = color.new(base, 20),
                              textcolor = color.white, size = size.tiny,
                              tooltip = str.format("Hiding FVG #{0} for zone {1} - {2}", k + 1, str.tostring(z.bot, format.mintick), str.tostring(z.top, format.mintick))))
-                float dist = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
                 shown.push(z)
-                scores.push(z.hidden * 1000.0 - math.abs(dist))
+                scores.push(z.hidden * 1000.0 - math.abs(distPct))
 
     if showTable
         table.cell(tbl, 0, 0, "HOB " + tf, text_color = color.white, bgcolor = color.new(color.black, 20), text_size = size.small)
