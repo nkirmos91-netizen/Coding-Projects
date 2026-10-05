@@ -1,21 +1,21 @@
 //@version=6
 indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500, max_labels_count = 500)
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // HIDDEN ORDERBLOCK
-// A candle body (open→close) that price has only ever crossed *inside* an FVG.
+// A candle body (open->close) that price has only ever crossed *inside* an FVG.
 // Every time price skips over the body via an FVG that covers the WHOLE body,
 // the body becomes one level more "hidden" (1x, 2x, 3x ...).
-// Any other candle trading into the body (wick or body) mitigates it → dead.
+// Any other candle trading into the body (wick or body) mitigates it -> dead.
 //
 // Rules, for candidate candle Z:
-//   • The candle straight after Z (the move away) may trade through the body.
-//   • From then on, for every candle M that enters the body:
-//       - bearish FVG covers body:  low[M-1] >= bodyTop and high[M+1] <= bodyBot  → hidden += 1
-//       - bullish FVG covers body:  high[M-1] <= bodyBot and low[M+1] >= bodyTop  → hidden += 1
-//       - otherwise                                                               → mitigated
-//   • Above current price = bearish (resistance), below = bullish (support).
-// ─────────────────────────────────────────────────────────────────────────────
+//   * The candle straight after Z (the move away) may trade through the body.
+//   * From then on, for every candle M that enters the body:
+//       - bearish FVG covers body:  low[M-1] >= bodyTop and high[M+1] <= bodyBot  -> hidden += 1
+//       - bullish FVG covers body:  high[M-1] <= bodyBot and low[M+1] >= bodyTop  -> hidden += 1
+//       - otherwise                                                               -> mitigated
+//   * Above current price = bearish (resistance), below = bullish (support).
+// -----------------------------------------------------------------------------
 
 const string G_DET = "Detection"
 int   minHidden  = input.int(1, "Min hidden count to show", minval = 1, group = G_DET)
@@ -70,7 +70,7 @@ var array<Zone> mitigated = array.new<Zone>()
 bool levelUp   = false
 bool mitigatedNow = false
 
-// ── Update on closed candles only. Candle M = previous bar, its neighbours are bar[2] and the bar that just closed.
+// -- Update on closed candles only. Candle M = previous bar, its neighbours are bar[2] and the bar that just closed.
 if barstate.isconfirmed and bar_index >= 2
     float pHigh = high[2]
     float pLow  = low[2]
@@ -118,7 +118,7 @@ if barstate.isconfirmed and bar_index >= 2
                         break
                 active.remove(drop)
 
-// ── Summary values (data window / Pine Screener / alerts)
+// -- Summary values (data window / Pine Screener / alerts)
 int   bearHidden = na
 float bearDist   = na
 int   bullHidden = na
@@ -151,7 +151,7 @@ alertcondition(levelUp,      "Hidden OB formed / level up", "{{ticker}} {{interv
 alertcondition(tapping,      "Price tapping a hidden OB",   "{{ticker}} {{interval}}: price is trading into a hidden orderblock")
 alertcondition(mitigatedNow, "Hidden OB mitigated",         "{{ticker}} {{interval}}: a hidden orderblock was mitigated")
 
-// ── Drawing (rebuilt on the last bar only)
+// -- Drawing (rebuilt on the last bar only)
 tablePosition(string s) =>
     switch s
         "Top right"    => position.top_right
@@ -200,7 +200,7 @@ if barstate.islast
                         marks.push(label.new(z.fvgTimes.get(k), z.fvgPrices.get(k), str.tostring(k + 1), xloc = xloc.bar_time,
                              style = fb ? label.style_label_down : label.style_label_up, color = color.new(base, 20),
                              textcolor = color.white, size = size.tiny,
-                             tooltip = str.format("Hiding FVG #{0} for zone {1} – {2}", k + 1, str.tostring(z.bot, format.mintick), str.tostring(z.top, format.mintick))))
+                             tooltip = str.format("Hiding FVG #{0} for zone {1} - {2}", k + 1, str.tostring(z.bot, format.mintick), str.tostring(z.top, format.mintick))))
                 float dist = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
                 shown.push(z)
                 scores.push(z.hidden * 1000.0 - math.abs(dist))
@@ -223,8 +223,8 @@ if barstate.islast
                 color bg     = color.new(isBear ? bearCol : bullCol, 60)
                 table.cell(tbl, 0, r + 1, isBear ? "Bear" : "Bull", text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 1, r + 1, str.tostring(z.hidden) + "x", text_color = color.white, bgcolor = bg, text_size = size.small)
-                table.cell(tbl, 2, r + 1, str.tostring(z.bot, format.mintick) + " – " + str.tostring(z.top, format.mintick), text_color = color.white, bgcolor = bg, text_size = size.small)
+                table.cell(tbl, 2, r + 1, str.tostring(z.bot, format.mintick) + " - " + str.tostring(z.top, format.mintick), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 3, r + 1, str.tostring(dist, "#.##"), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 4, r + 1, str.tostring(z.bodyPct, "#"), text_color = color.white, bgcolor = bg, text_size = size.small)
 
-// ── END OF SCRIPT ── if you can read this line in Pine Editor, the whole file was pasted.
+// -- END OF SCRIPT -- if you can read this line in Pine Editor, the whole file was pasted.
