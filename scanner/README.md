@@ -24,7 +24,18 @@ All timeframes (1D, 2D, 3D, 4D, 5D, 1W, 2W, 3W, 1M, 2M, 3M, 6M, 12M) are built f
 The page sorts by any column and filters by market, direction, timeframe, minimum
 hidden count and touched. Each symbol links to its TradingView chart on that timeframe.
 
-## Run it
+## On a Mac: double-click
+
+In the `scanner` folder:
+
+- **Run Scan**: runs a full scan and opens the results page. The first run sets up anything missing.
+- **Open Results**: opens the latest results page without scanning.
+- **Schedule Daily Scan**: your Mac runs the scan every day at a time you choose (if it's asleep, it runs on wake) and shows a notification when done.
+- **Stop Daily Scan**: turns the daily scan off.
+
+The first time you open each one, macOS may block it because it was downloaded: right-click it, choose **Open**, then **Open** again. After that a normal double-click works.
+
+## Run it from Terminal
 
 Needs Python 3.11 or newer.
 
