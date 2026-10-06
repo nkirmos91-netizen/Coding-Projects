@@ -1,5 +1,5 @@
 //@version=6
-indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500, max_labels_count = 500)
+indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, scale = scale.right, max_boxes_count = 500, max_labels_count = 500)
 
 // -----------------------------------------------------------------------------
 // HIDDEN ORDERBLOCK
