@@ -46,16 +46,16 @@ location they serve.
 
 ```
 python -m hobscan candles MSFT 5D
-python -m hobscan candles SOLUSDT 7D
+python -m hobscan candles SOLUSDT 3D
 ```
 
-Prints the scanner's last few candles (start date, open, high, low, close). For 2D–7D
-it prints both anchor options. Hover the same candles on TradingView to see which matches.
+Prints the scanner's last few candles (start date, open, high, low, close).
+Hover the same candles on TradingView to check they match.
 
 ## Still to do
 
-- Check the multi-day (2D–7D) candle start dates (`anchor` in the config) against
-  TradingView charts. Multi-week candles are already aligned.
+- Match ASX and XETRA 2D–5D candles to TradingView (they are skipped until then).
+  Crypto and US stocks are matched on every timeframe.
 - FXCM connection for FX, commodities and indices.
 
 ## Tests

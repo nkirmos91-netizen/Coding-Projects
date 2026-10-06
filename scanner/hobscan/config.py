@@ -6,6 +6,10 @@ from pathlib import Path
 
 from .engine import Params
 
+# Days on which every 2D-5D candle starts on TradingView, per exchange (trading-day count).
+DEFAULT_SESSION_REFS = {"Stocks": {"NYSE": "2026-09-22", "NASDAQ": "2026-09-22"}}
+DEFAULT_ANCHORS = {"Crypto": "epoch", "Stocks": "sessions"}
+
 
 @dataclass
 class Config:
@@ -18,10 +22,18 @@ class Config:
     stocks: dict = field(default_factory=dict)
     fx: dict = field(default_factory=dict)
 
+    def session_ref(self, market: str, exchange: str) -> str | None:
+        """Reference day for anchor 'sessions' (a day on which every 2D-5D candle starts)."""
+        section = {"Crypto": self.crypto, "Stocks": self.stocks, "FX": self.fx}.get(market, {})
+        refs = section.get("session_refs", DEFAULT_SESSION_REFS.get(market, {}))
+        return refs.get(exchange)
+
     def anchor_for(self, market: str) -> str:
         """Where 2D-7D candles start: crypto counts calendar days, stocks count trading days."""
         section = {"Crypto": self.crypto, "Stocks": self.stocks, "FX": self.fx}.get(market, {})
-        return section.get("anchor", {"Crypto": "epoch"}.get(market, self.anchor))
+        anchor = section.get("anchor", DEFAULT_ANCHORS.get(market, self.anchor))
+        # Older configs used "first" for stocks, which doesn't match TradingView.
+        return "sessions" if market == "Stocks" and anchor == "first" else anchor
 
 
 def load(path: str | Path) -> Config:

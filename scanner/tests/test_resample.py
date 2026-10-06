@@ -62,3 +62,19 @@ def test_crypto_7d_epoch_matches_tradingview():
     w, _ = resample(d, "7D", now_ms=ms("2026-10-06"), anchor="epoch")
     starts = [datetime.fromtimestamp(b.t / 1000, timezone.utc).strftime("%Y-%m-%d") for b in w]
     assert starts == ["2026-09-20", "2026-09-24", "2026-10-01"]
+
+
+def test_us_stock_sessions_match_tradingview():
+    # NYSE trading days Aug 24 - Oct 7 2026 (Labor Day Sep 7 closed). TradingView MSFT:
+    # 2D and 4D start Oct 2, 3D starts Oct 5, 5D starts Sep 29 and Aug 31.
+    dates = ([f"2026-08-{d:02d}" for d in range(24, 32)] + [f"2026-09-{d:02d}" for d in range(1, 31)]
+             + [f"2026-10-{d:02d}" for d in range(1, 8)])
+    sessions = [x for x in dates if datetime.fromisoformat(x).weekday() < 5 and x != "2026-09-07"]
+    bars = [Bar(ms(x), 1, 2, 0.5, 1.5) for x in sessions if x <= "2026-10-05"]
+    ref = ms("2026-09-22")
+    def starts(tf):
+        b, _ = resample(bars, tf, now_ms=ms("2026-10-06"), anchor="sessions", session_ref_ms=ref)
+        return [datetime.fromtimestamp(x.t / 1000, timezone.utc).strftime("%Y-%m-%d") for x in b]
+    assert starts("2D")[-1] == "2026-10-02" and starts("4D")[-1] == "2026-10-02"
+    assert starts("3D")[-1] == "2026-10-05" and starts("5D")[-1] == "2026-09-29"
+    assert "2026-08-31" in starts("5D") and "2026-09-08" in starts("5D")

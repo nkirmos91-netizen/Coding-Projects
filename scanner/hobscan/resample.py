@@ -8,9 +8,11 @@ bodies and FVGs come out different.
   * nD candles, set per market:
       "epoch": count calendar days from 1970-01-01. Matches TradingView for crypto
                (BYBIT:SOLUSDT.P 7D candle starts 2026-10-01).
+      "sessions": count the symbol's own trading days (holidays skipped) from a
+               reference day on which every 2D-5D candle starts. US stocks on
+               TradingView: 2026-09-22 (checked on MSFT 2D-5D, ARM 3D/5D and the
+               MSFT 5D candle starting Mon 31 Aug over Labor Day).
       "first": count trading days from the first candle in the symbol's history.
-               Stocks count trading days on TradingView; the starting point is still
-               being checked (MSFT 5D is one day off).
 """
 
 from __future__ import annotations
@@ -62,7 +64,7 @@ TV_WEEK_BASE = 1
 
 
 def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
-             anchor: str = "first") -> tuple[list[Bar], bool]:
+             anchor: str = "first", session_ref_ms: int | None = None) -> tuple[list[Bar], bool]:
     """Group daily candles into `tf` candles.
 
     Returns (candles, last_is_live). The last candle is live if its period has not
@@ -75,7 +77,12 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
         return list(daily), daily_live
 
     keys: list[int] = []
-    if unit == "D":
+    if unit == "D" and anchor == "sessions":
+        if session_ref_ms is None:
+            raise ValueError("anchor 'sessions' needs a reference day")
+        ref = next((i for i, b in enumerate(daily) if b.t >= session_ref_ms), len(daily))
+        keys = [(i - ref) // n for i in range(len(daily))]
+    elif unit == "D":
         keys = [i // n if anchor == "first" else (b.t // DAY_MS) // n for i, b in enumerate(daily)]
     elif unit == "W":
         keys = [(_week_index(b.t) - TV_WEEK_BASE) // n for b in daily]
@@ -97,7 +104,7 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
 
     last_key = keys[-1]
     if unit == "D":
-        if anchor == "first":
+        if anchor in ("first", "sessions"):
             unfinished = counts[-1] < n
         else:
             unfinished = now_ms < (last_key + 1) * n * DAY_MS
