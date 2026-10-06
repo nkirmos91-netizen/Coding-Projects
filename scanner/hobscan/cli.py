@@ -141,6 +141,41 @@ def run_candles(symbol: str, tf: str, count: int) -> None:
         print("(last candle still open)")
 
 
+def _load_daily(symbol: str, now_ms: int):
+    """Daily candles for one symbol: Bybit perp if it ends in USDT, else a Yahoo stock."""
+    sym = symbol.upper()
+    if sym.endswith("USDT"):
+        from .providers.base import daily_is_live
+        from .providers.crypto import Bybit
+        daily = Bybit().daily(sym)
+        return sym, "Crypto", "Bybit", daily, bool(daily) and daily_is_live(daily[-1], now_ms)
+    from .providers.stocks import Stocks
+    src = Stocks({})
+    inst = Instrument(symbol=sym, market="Stocks", name=sym, tv_symbol=sym, exchange=_guess_exchange(sym))
+    src.prefetch([inst])
+    daily, live = src.daily(inst, now_ms)
+    return sym, "Stocks", inst.exchange, daily, live
+
+
+def run_explain(symbol: str, tf: str, bottom: float, config: str) -> None:
+    """Print one zone's full history: formation, each FVG, each touch, and what ended it."""
+    import os
+    now_ms = int(time.time() * 1000)
+    cfg = load(config) if os.path.exists(config) else Config(timeframes=[tf])
+    sym, market, exchange, daily, live = _load_daily(symbol, now_ms)
+    if not daily:
+        print(f"No data for {sym}")
+        return
+    anchor = cfg.anchor_for(market)
+    ref = cfg.session_ref(market, exchange)
+    ref_ms = int(datetime.fromisoformat(ref).replace(tzinfo=timezone.utc).timestamp() * 1000) if ref else None
+    bars, last_live = resample(daily, tf, now_ms, live, anchor, ref_ms)
+    log: list[str] = []
+    detect(bars, cfg.params, last_live, trace_bot=bottom, log=log)
+    print(f"\n{sym} {tf}: zone with body bottom {bottom:g}  (current price {bars[-1].c:g})\n")
+    print("\n".join(log) if log else "No zone candle with that body bottom. Check the price (it's the lower edge of the zone).")
+
+
 def _guess_exchange(sym: str) -> str:
     return "ASX" if sym.endswith(".AX") else "XETR" if sym.endswith(".DE") else "NASDAQ"
 
@@ -158,9 +193,16 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("symbol", help="e.g. MSFT, BHP.AX, SAP.DE, SOLUSDT (Bybit perp)")
     c.add_argument("tf", help="e.g. 5D, 3W")
     c.add_argument("--count", type=int, default=6)
+    e = sub.add_parser("explain", help="show one zone's history candle by candle")
+    e.add_argument("symbol", help="e.g. NFLX, SOLUSDT")
+    e.add_argument("tf", help="e.g. 2W")
+    e.add_argument("bottom", type=float, help="the zone's lower price, as shown on the results page")
+    e.add_argument("--config", default="config.toml")
     a = p.parse_args(argv)
     if a.cmd == "scan":
         run_scan(load(a.config), set(a.markets.lower().split(",")), a.limit)
+    elif a.cmd == "explain":
+        run_explain(a.symbol, a.tf, a.bottom, a.config)
     elif a.cmd == "candles":
         run_candles(a.symbol, a.tf, a.count)
     else:

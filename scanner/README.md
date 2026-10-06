@@ -53,6 +53,16 @@ Then open `output/hob_scan.html` in a browser.
 Bybit and Binance block some countries (including the US), so run it from a
 location they serve.
 
+## Why is a zone there (or not)?
+
+```
+python -m hobscan explain NFLX 2W 52.812
+```
+
+Prints that zone's history candle by candle: the zone candle, each FVG that hid it, each
+touch and how deep it went, and what mitigated it if it's gone. Use the zone's lower price
+from the results page (or from TradingView for a zone the scanner doesn't show).
+
 ## Compare candles with TradingView
 
 ```

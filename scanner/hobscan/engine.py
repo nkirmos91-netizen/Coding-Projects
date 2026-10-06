@@ -23,6 +23,7 @@ Rules for a candidate candle Z (body = open..close):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 
 @dataclass(frozen=True)
@@ -103,12 +104,21 @@ def prev_clear(z: Zone, prev: Bar, buf_pct: float) -> bool:
     return prev.l >= z.top - buf or prev.h <= z.bot + buf
 
 
-def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = False) -> list[Found]:
+def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = False,
+           trace_bot: float | None = None, log: list[str] | None = None) -> list[Found]:
     """Hidden orderblocks still valid at the end of `bars`.
 
     If `last_is_live`, the final bar is the still-open candle: it never becomes a
     candidate and can only mark zones as forming / testing / touched.
+    With `trace_bot` and `log`, every event for zones whose body bottom is that price
+    (within 0.05%) is written to `log`, including the zone being mitigated.
     """
+    def traced(z: Zone) -> bool:
+        return log is not None and trace_bot is not None and abs(z.bot - trace_bot) <= abs(trace_bot) * 5e-4
+
+    def note(z: Zone, b: Bar, text: str) -> None:
+        log.append(f"[zone {_day(z.t)}] {_day(b.t)}  {text}")
+
     closed = bars[:-1] if last_is_live and bars else bars
     active: list[Zone] = []
     atr = None  # Wilder's ATR(14), same as TradingView's ta.atr(14)
@@ -126,6 +136,16 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             keep = []
             for z in active:
                 v, depth = judge(z, i, b, prev, params.touch_buffer_pct)
+                if traced(z) and v != NONE:
+                    pct = lambda x: f"{x / (z.top - z.bot) * 100:.1f}%"
+                    if v in FVG:
+                        note(z, b, f"{'bearish' if v == FVG_BEAR else 'bullish'} FVG candle "
+                                   f"(prev {'low' if v == FVG_BEAR else 'high'} {prev.l if v == FVG_BEAR else prev.h:g}, "
+                                   f"close {b.c:g}) -> {z.hidden + 1}x hidden")
+                    else:
+                        note(z, b, f"{'touch' if v == TOUCH else 'MITIGATED'}: candle H {b.h:g} L {b.l:g} C {b.c:g} "
+                                   f"reached {pct(depth)} into the body, total {pct(z.eaten + depth)} "
+                                   f"(allowance {params.touch_buffer_pct:g}%)")
                 if v == KILL:
                     continue
                 if v in FVG:
@@ -139,13 +159,20 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
         rng = b.h - b.l
         body = abs(b.c - b.o)
         if rng > 0 and body > 0 and body / rng * 100 >= params.min_body_pct:
-            active.append(Zone(idx=i, t=b.t, top=max(b.o, b.c), bot=min(b.o, b.c),
-                               bear=b.c < b.o, body_pct=body / rng * 100,
-                               small=atr is not None and body < params.min_body_atr * atr))
+            z = Zone(idx=i, t=b.t, top=max(b.o, b.c), bot=min(b.o, b.c), bear=b.c < b.o,
+                     body_pct=body / rng * 100, small=atr is not None and body < params.min_body_atr * atr)
+            active.append(z)
+            if traced(z):
+                note(z, b, f"zone candle: {'bearish' if z.bear else 'bullish'} body {z.bot:g} - {z.top:g} "
+                           f"(O {b.o:g} H {b.h:g} L {b.l:g} C {b.c:g}), body {z.body_pct:.0f}% of range"
+                           + (f", {body / atr:.2f}x ATR" if atr else ""))
 
     found = []
     live = bars[-1] if last_is_live and len(bars) >= 2 else None
     for z in active:
+        if traced(z):
+            log.append(f"[zone {_day(z.t)}] end: still valid, {z.hidden}x hidden" + (", touched" if z.touched else "")
+                       + (", junk (small body, only 1x)" if z.small and z.hidden < 2 else ""))
         v = judge(z, len(closed), live, closed[-1], params.touch_buffer_pct)[0] if live else NONE
         if v == KILL and not prev_clear(z, closed[-1], params.touch_buffer_pct):
             continue  # the open candle is already past the allowance and can't become an FVG candle
@@ -160,3 +187,7 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             found.append(Found(zone=z, hidden=hidden, forming=forming,
                                testing=v == KILL, touched=touched))
     return found
+
+
+def _day(t: int) -> str:
+    return datetime.fromtimestamp(t / 1000, timezone.utc).strftime("%Y-%m-%d")
