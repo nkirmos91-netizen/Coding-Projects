@@ -9,12 +9,15 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 // Any other candle trading into the body (wick or body) mitigates it -> dead.
 //
 // Rules, for candidate candle Z:
-//   * The candle straight after Z (the move away) may trade through the body.
+//   * Z's colour sets the zone: bearish candle = bearish zone, bullish = bullish.
+//   * The candle straight after Z may cross the body only by closing beyond its
+//     far side (the move away). A wick back into the body mitigates it.
 //   * From then on, for every candle M that enters the body:
-//       - bearish FVG covers body:  low[M-1] >= bodyTop and high[M+1] <= bodyBot  -> hidden += 1
-//       - bullish FVG covers body:  high[M-1] <= bodyBot and low[M+1] >= bodyTop  -> hidden += 1
-//       - otherwise                                                               -> mitigated
-//   * Above current price = bearish (resistance), below = bullish (support).
+//       - same-colour FVG covers the whole body             -> hidden += 1
+//           bearish: low[M-1] >= bodyTop and high[M+1] <= bodyBot
+//           bullish: high[M-1] <= bodyBot and low[M+1] >= bodyTop
+//       - opposite-colour FVG covers the whole body         -> ignored
+//       - otherwise (any wick or body into it)              -> mitigated
 // -----------------------------------------------------------------------------
 
 const string G_DET = "Detection"
@@ -30,8 +33,8 @@ int   lookback   = input.int(0, "Lookback (bars)", minval = 0, group = G_DET,
      tooltip = "Only show zones formed in the last N bars (0 = all loaded history).")
 
 const string G_VIS = "Display"
-bool  showBear  = input.bool(true, "Show bearish (above price)", group = G_VIS)
-bool  showBull  = input.bool(true, "Show bullish (below price)", group = G_VIS)
+bool  showBear  = input.bool(true, "Show bearish", group = G_VIS)
+bool  showBull  = input.bool(true, "Show bullish", group = G_VIS)
 color bearCol   = input.color(#C0501A, "Bearish colour", group = G_VIS)
 color bullCol   = input.color(#1A8FC0, "Bullish colour", group = G_VIS)
 bool  showMarks = input.bool(true, "Mark the FVG candles that hide each zone", group = G_VIS)
@@ -51,6 +54,7 @@ type Zone
     float        top
     float        bot
     float        bodyPct
+    bool         bear
     int          hidden = 0
     int          endTime
     array<int>   fvgTimes
@@ -86,24 +90,32 @@ if barstate.isconfirmed and bar_index >= 2
     int i = active.size() - 1
     while i >= 0
         Zone z = active.get(i)
-        if mIdx > z.barIdx + 1 and mHigh > z.bot and mLow < z.top
+        bool entered = mIdx > z.barIdx and mHigh > z.bot and mLow < z.top
+        bool killed  = false
+        if entered and mIdx == z.barIdx + 1
+            // The move away: it may only cross the body by closing beyond the far side.
+            killed := z.bear ? close[1] <= z.top : close[1] >= z.bot
+        else if entered
             bool bearCover = pLow >= z.top and high <= z.bot
             bool bullCover = pHigh <= z.bot and low >= z.top
-            if bearCover or bullCover
+            if (bearCover and z.bear) or (bullCover and not z.bear)
                 z.hidden := z.hidden + 1
                 z.fvgTimes.push(mTime)
                 z.fvgPrices.push(bearCover ? mHigh : mLow)
                 z.fvgBear.push(bearCover)
                 if z.hidden >= minHidden
                     levelUp := true
-            else
-                if z.hidden >= minHidden
-                    mitigatedNow := true
-                    z.endTime := mTime
-                    mitigated.push(z)
-                    if mitigated.size() > maxMit
-                        mitigated.shift()
-                active.remove(i)
+            else if not (bearCover or bullCover)
+                killed := true
+            // An FVG of the opposite colour neither counts nor mitigates.
+        if killed
+            if z.hidden >= minHidden
+                mitigatedNow := true
+                z.endTime := mTime
+                mitigated.push(z)
+                if mitigated.size() > maxMit
+                    mitigated.shift()
+            active.remove(i)
         i -= 1
 
     // The candle that just closed becomes a new candidate.
@@ -113,7 +125,7 @@ if barstate.isconfirmed and bar_index >= 2
     if rng > 0 and bTop > bBot
         float pct = (bTop - bBot) / rng * 100
         if pct >= minBodyPct
-            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct,
+            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open,
                  fvgTimes = array.new<int>(), fvgPrices = array.new<float>(), fvgBear = array.new<bool>()))
             if active.size() > maxTracked
                 int drop = 0
@@ -164,7 +176,7 @@ if barstate.islast
     array<Zone>  shown  = array.new<Zone>()
     array<float> scores = array.new<float>()
     for z in active
-        bool  isBear  = (z.top + z.bot) / 2 > close
+        bool  isBear  = z.bear
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
         bool  inRange = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
         if z.hidden >= minHidden and inRange
@@ -201,7 +213,7 @@ if barstate.islast
             int n = math.min(tableRows, ranked.size())
             for r = 0 to n - 1
                 Zone  z      = shown.get(ranked.get(r))
-                bool  isBear = (z.top + z.bot) / 2 > close
+                bool  isBear = z.bear
                 float dist   = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
                 color bg     = color.new(isBear ? bearCol : bullCol, 60)
                 table.cell(tbl, 0, r + 1, isBear ? "Bear" : "Bull", text_color = color.white, bgcolor = bg, text_size = size.small)

@@ -6,13 +6,13 @@ Finds **hidden orderblocks**: clean candle bodies that price has only ever skipp
 
 For a candidate candle **Z**, the body is the range between its open and close:
 
-1. The candle straight after Z, the move away, may trade through the body.
-2. After that, every candle **M** that trades into the body must be the middle candle of an FVG that covers the **whole** body:
+1. Z's colour sets the zone: a bearish candle makes a **bearish** zone, a bullish candle a **bullish** one.
+2. The candle straight after Z may cross the body only by closing beyond its far side (the move away). If its wick goes back into the body, the zone is mitigated.
+3. After that, every candle **M** that trades into the body must be the middle candle of an FVG that covers the **whole** body:
    - Bearish FVG: `low[M-1] >= bodyTop` and `high[M+1] <= bodyBottom`
    - Bullish FVG: `high[M-1] <= bodyBottom` and `low[M+1] >= bodyTop`
-   - Each covering FVG gives **+1 hidden**.
-3. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
-4. If the zone is above price it's **bearish** (resistance). If it's below price it's **bullish** (support).
+   - An FVG the same colour as Z gives **+1 hidden**. An FVG of the opposite colour is ignored.
+4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
 
 Detection only uses candles from the chart's own timeframe.
