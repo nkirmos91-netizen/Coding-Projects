@@ -7,7 +7,7 @@ Finds **hidden orderblocks**: clean candle bodies that price has only ever skipp
 For a candidate candle **Z**, the body is the range between its open and close:
 
 1. Z's colour must match the **first** FVG that hides it (see 3). On the chart and in the scanner, a zone above price is shown as **bearish** (resistance) and below price as **bullish** (support).
-2. The candle straight after Z may cross the body only by closing beyond its far side (the move away). If its wick goes back into the body, the zone is mitigated.
+2. The candle straight after Z is the move away: it should close beyond the body's far side. If it closes inside the body, the part it covers counts as a touch (see 4).
 3. After that, every candle **M** that trades into the body is judged when it closes:
    - If it's an FVG candle whose **body** carries price through the whole zone, it adds a level of hidden:
      - Bearish: `low[M-1] >= bodyTop` and `close[M] <= bodyBottom`
