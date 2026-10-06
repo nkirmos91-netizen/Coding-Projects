@@ -1,5 +1,5 @@
 //@version=6
-indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500, max_labels_count = 500)
+indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500)
 
 // -----------------------------------------------------------------------------
 // HIDDEN ORDERBLOCK
@@ -39,7 +39,6 @@ bool  showBear  = input.bool(true, "Show bearish", group = G_VIS)
 bool  showBull  = input.bool(true, "Show bullish", group = G_VIS)
 color bearCol   = input.color(#C0501A, "Bearish colour", group = G_VIS)
 color bullCol   = input.color(#1A8FC0, "Bullish colour", group = G_VIS)
-bool  showMarks = input.bool(true, "Mark the FVG candles that hide each zone", group = G_VIS)
 bool  showMit   = input.bool(false, "Show mitigated hidden OBs (history)", group = G_VIS,
      tooltip = "Hidden OBs that price has since traded into. Useful for checking past reactions.")
 int   maxMit    = input.int(50, "Max mitigated to show", minval = 1, maxval = 300, group = G_VIS)
@@ -59,9 +58,6 @@ type Zone
     bool         bear
     int          hidden = 0
     int          endTime
-    array<int>   fvgTimes
-    array<float> fvgPrices
-    array<bool>  fvgBear
 
 tfLabel() =>
     string res = timeframe.period
@@ -102,9 +98,6 @@ if barstate.isconfirmed and bar_index >= 1
             // The first FVG must match the zone's colour; after that any covering FVG counts.
             if sameColour or ((bearCover or bullCover) and z.hidden > 0)
                 z.hidden := z.hidden + 1
-                z.fvgTimes.push(time)
-                z.fvgPrices.push(bearCover ? high : low)
-                z.fvgBear.push(bearCover)
                 if z.hidden >= minHidden
                     levelUp := true
             else
@@ -126,8 +119,7 @@ if barstate.isconfirmed and bar_index >= 1
     if rng > 0 and bTop > bBot
         float pct = (bTop - bBot) / rng * 100
         if pct >= minBodyPct
-            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open,
-                 fvgTimes = array.new<int>(), fvgPrices = array.new<float>(), fvgBear = array.new<bool>()))
+            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open))
             if active.size() > maxTracked
                 int drop = 0
                 for j = 0 to active.size() - 1
@@ -155,16 +147,12 @@ tablePosition(string s) =>
         => position.bottom_left
 
 var array<box>   boxes  = array.new<box>()
-var array<label> marks  = array.new<label>()
 var table        tbl    = table.new(tablePosition(tablePos), 5, 22, border_width = 1)
 
 if barstate.islast
     for b in boxes
         b.delete()
     boxes.clear()
-    for l in marks
-        l.delete()
-    marks.clear()
     tbl.clear(0, 0, 4, 21)
 
     string tf = tfLabel()
@@ -200,17 +188,6 @@ if barstate.islast
                      bgcolor = c, border_color = c, border_style = forming or tested ? line.style_dashed : line.style_solid,
                      text = str.format("{0}x {1}{2}", nHidden, tf, note), text_color = color.white,
                      text_size = size.small, text_halign = text.align_right))
-                if showMarks and forming
-                    marks.push(label.new(time, fBear ? high : low, str.tostring(nHidden) + "?", xloc = xloc.bar_time,
-                         style = fBear ? label.style_label_down : label.style_label_up, color = color.new(base, 50),
-                         textcolor = color.white, size = size.tiny, tooltip = "Forming FVG: confirmed when this candle closes"))
-                if showMarks and z.fvgTimes.size() > 0
-                    for k = 0 to z.fvgTimes.size() - 1
-                        bool fb = z.fvgBear.get(k)
-                        marks.push(label.new(z.fvgTimes.get(k), z.fvgPrices.get(k), str.tostring(k + 1), xloc = xloc.bar_time,
-                             style = fb ? label.style_label_down : label.style_label_up, color = color.new(base, 20),
-                             textcolor = color.white, size = size.tiny,
-                             tooltip = str.format("Hiding FVG #{0} for zone {1} - {2}", k + 1, str.tostring(z.bot, format.mintick), str.tostring(z.top, format.mintick))))
                 shown.push(z)
                 shownN.push(nHidden)
                 shownF.push(forming)

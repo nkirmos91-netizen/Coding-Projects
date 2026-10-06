@@ -27,7 +27,6 @@ Detection only uses candles from the chart's own timeframe.
    - Each zone is labelled `<hidden>x <timeframe>`, for example `3x 4D`.
    - Fill is darker the more hidden a zone is.
    - "testing" means the current candle is trading into the zone.
-3. Small numbered tags (1, 2, 3 …) mark the FVG candles that hide each zone.
 4. The table lists the visible zones ranked by hidden count, then by distance from price.
 5. Three alerts are available:
    - hidden OB formed or gained a level
