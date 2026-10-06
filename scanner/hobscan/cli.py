@@ -18,6 +18,7 @@ from .resample import parse_tf, resample, tv_interval
 
 def zones_for(inst: Instrument, daily: list[Bar], daily_live: bool, cfg: Config, now_ms: int) -> list[dict]:
     rows = []
+    max_dist = cfg.max_distance_pct(inst.market)
     anchor = cfg.anchor_for(inst.market)
     ref = cfg.session_ref(inst.market, inst.exchange)
     ref_ms = int(datetime.fromisoformat(ref).replace(tzinfo=timezone.utc).timestamp() * 1000) if ref else None
@@ -33,6 +34,8 @@ def zones_for(inst: Instrument, daily: list[Bar], daily_live: bool, cfg: Config,
             z = f.zone
             above = (z.top + z.bot) / 2 > close  # above price = bearish (resistance)
             dist = (z.bot - close) / close * 100 if above else (close - z.top) / close * 100
+            if max_dist and dist > max_dist:
+                continue  # too far from current price to matter
             rows.append({
                 "symbol": inst.symbol, "name": inst.name, "market": inst.market, "exchange": inst.exchange,
                 "tf": tf, "dir": "Bear" if above else "Bull", "hidden": f.hidden,

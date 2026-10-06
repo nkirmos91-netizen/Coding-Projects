@@ -8,8 +8,8 @@ TradingView indicator in `../pine/hidden_orderblocks.pine` (see the main README)
 
 | Market | Source | Filter (editable in `config.toml`) |
 |---|---|---|
-| Crypto | Bybit (or Binance) USDT perpetuals; market cap from CoinGecko | market cap ≥ $100m and perp 24h volume ≥ $50m |
-| Stocks: NYSE, NASDAQ, ASX, XETR | Yahoo Finance | market cap ≥ $150m and 10-day average daily traded value ≥ $15m (USD) |
+| Crypto | Bybit (or Binance) USDT perpetuals; market cap from CoinGecko | market cap ≥ $100m and perp 24h volume ≥ $50m; zones within 50% of price |
+| Stocks: NYSE, NASDAQ, ASX, XETR | Yahoo Finance | market cap ≥ $150m and 10-day average daily traded value ≥ $15m (USD); zones within 30% of price |
 | FX, commodities, indices | FXCM | **not connected yet** |
 
 All timeframes (1D, 2D, 3D, 4D, 5D, 1W, 2W, 3W, 1M, 2M, 3M, 6M, 12M) are built from daily candles.

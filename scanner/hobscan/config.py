@@ -9,6 +9,7 @@ from .engine import Params
 # Days on which every 2D-5D candle starts on TradingView, per exchange (trading-day count).
 DEFAULT_SESSION_REFS = {"Stocks": {"NYSE": "2026-09-22", "NASDAQ": "2026-09-22"}}
 DEFAULT_ANCHORS = {"Crypto": "epoch", "Stocks": "sessions"}
+DEFAULT_MAX_DISTANCE = {"Crypto": 50.0, "Stocks": 30.0}
 
 
 @dataclass
@@ -27,6 +28,11 @@ class Config:
         section = {"Crypto": self.crypto, "Stocks": self.stocks, "FX": self.fx}.get(market, {})
         refs = section.get("session_refs", DEFAULT_SESSION_REFS.get(market, {}))
         return refs.get(exchange)
+
+    def max_distance_pct(self, market: str) -> float | None:
+        """Zones further than this % from current price are left out of the scan."""
+        section = {"Crypto": self.crypto, "Stocks": self.stocks, "FX": self.fx}.get(market, {})
+        return section.get("max_distance_pct", DEFAULT_MAX_DISTANCE.get(market))
 
     def anchor_for(self, market: str) -> str:
         """Where 2D-7D candles start: crypto counts calendar days, stocks count trading days."""

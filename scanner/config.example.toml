@@ -21,6 +21,7 @@ exchange = "bybit"          # "bybit" or "binance" (USDT perpetuals)
 anchor = "epoch"            # 2D-5D candles count calendar days from 1970-01-01 (matches TradingView)
 min_market_cap_usd = 100_000_000
 min_volume_usd = 50_000_000 # perpetual's 24h traded value at scan time
+max_distance_pct = 50       # leave out zones further than this % from current price (0 = no limit)
 
 [stocks]
 enabled = true
@@ -30,6 +31,7 @@ anchor = "sessions"         # 2D-5D candles count trading days from a reference 
 session_refs = { NYSE = "2026-09-22", NASDAQ = "2026-09-22" }
 min_market_cap_usd = 150_000_000
 min_volume_usd = 15_000_000 # average daily traded value (10-day), converted to USD
+max_distance_pct = 30       # leave out zones further than this % from current price (0 = no limit)
 
 [fx]
 enabled = false             # FXCM: FX, commodities and indices (connection still to be set up)
