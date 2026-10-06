@@ -1,5 +1,5 @@
 //@version=6
-indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500)
+indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_count = 500, max_labels_count = 500)
 
 // -----------------------------------------------------------------------------
 // HIDDEN ORDERBLOCK
@@ -39,6 +39,10 @@ float touchBuf   = input.float(15.0, "Touch allowance (% of body, all wicks comb
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
      tooltip = "Performance cap. When exceeded, the oldest candidate that is not hidden yet is dropped.")
 
+const string G_EXP = "Explain a zone"
+float traceBot = input.float(0, "Zone bottom price (0 = off)", minval = 0, group = G_EXP,
+     tooltip = "Labels every event for the zone whose body bottom is this price (within 0.05%): when it formed, each FVG that hid it, each touch and its depth, and what removed it.")
+
 const string G_VIS = "Display"
 bool  showBear  = input.bool(true, "Show bearish", group = G_VIS)
 bool  showBull  = input.bool(true, "Show bullish", group = G_VIS)
@@ -64,6 +68,7 @@ type Zone
     bool         bear
     bool         touched = false
     bool         small = false
+    bool         traced = false
     float        eaten = 0.0
     int          hidden = 0
     int          endTime
@@ -99,6 +104,13 @@ float atr14 = ta.atr(14)
 // crosses the body has closed: the candle before it never touched the body and it
 // traded straight through. If a later candle trades back into the body, that later
 // candle is judged on its own and mitigates the zone.
+traceNote(string txt, bool bad) =>
+    label.new(bar_index, high, txt, style = label.style_label_down, size = size.small,
+         color = bad ? color.new(color.red, 10) : color.new(color.blue, 10), textcolor = color.white)
+
+pctOf(float x, Zone z) =>
+    str.tostring(x / (z.top - z.bot) * 100, "#.#") + "%"
+
 if barstate.isconfirmed and bar_index >= 1
     int i = active.size() - 1
     while i >= 0
@@ -115,6 +127,8 @@ if barstate.isconfirmed and bar_index >= 1
                 z.eaten := z.eaten + d
                 z.touched := true
                 killed := z.eaten > buf
+                if z.traced
+                    traceNote((killed ? "MITIGATED by move-away candle: " : "move-away touch: ") + pctOf(d, z) + ", total " + pctOf(z.eaten, z), killed)
         else if inBody
             // The FVG candle's body must carry price through: it closes beyond the far side.
             bool bearCover = low[1] >= z.top - buf and close <= z.bot + buf
@@ -125,10 +139,16 @@ if barstate.isconfirmed and bar_index >= 1
                 z.hidden := z.hidden + 1
                 if z.hidden >= minHidden
                     levelUp := true
+                if z.traced
+                    traceNote((bearCover ? "bearish" : "bullish") + " FVG -> " + str.tostring(z.hidden) + "x hidden", false)
             else
-                z.eaten := z.eaten + math.min(z.top - math.max(low, z.bot), math.min(high, z.top) - z.bot)
+                float d = math.min(z.top - math.max(low, z.bot), math.min(high, z.top) - z.bot)
+                z.eaten := z.eaten + d
                 z.touched := true
                 killed := z.eaten > buf
+                if z.traced
+                    string why = (bearCover or bullCover) ? " (FVG, but first one must match the zone colour)" : ""
+                    traceNote((killed ? "MITIGATED: " : "touch: ") + pctOf(d, z) + " into body, total " + pctOf(z.eaten, z) + why, killed)
         if killed
             if z.hidden >= minHidden
                 mitigatedNow := true
@@ -147,13 +167,18 @@ if barstate.isconfirmed and bar_index >= 1
         float pct = (bTop - bBot) / rng * 100
         if pct >= minBodyPct
             bool small = not na(atr14) and bTop - bBot < minBodyAtr * atr14
-            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open, small = small))
+            bool tr = traceBot > 0 and math.abs(bBot - traceBot) <= traceBot * 0.0005
+            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open, small = small, traced = tr))
+            if tr
+                traceNote("zone candle: " + str.tostring(bBot, format.mintick) + " - " + str.tostring(bTop, format.mintick) + ", body " + str.tostring(pct, "#") + "% of range, " + (na(atr14) ? "" : str.tostring((bTop - bBot) / atr14, "#.##") + "x ATR") + (small ? " (small: needs 2x)" : ""), false)
             if active.size() > maxTracked
                 int drop = 0
                 for j = 0 to active.size() - 1
                     if active.get(j).hidden == 0
                         drop := j
                         break
+                if active.get(drop).traced
+                    traceNote("traced zone dropped: candidate limit reached (raise Max tracked candidates)", true)
                 active.remove(drop)
 
 // -- Live tap check (alerts)
@@ -175,12 +200,16 @@ tablePosition(string s) =>
         => position.bottom_left
 
 var array<box>   boxes  = array.new<box>()
+var array<label> traceEnd = array.new<label>()
 var table        tbl    = table.new(tablePosition(tablePos), 5, 22, border_width = 1)
 
 if barstate.islast
     for b in boxes
         b.delete()
     boxes.clear()
+    for l in traceEnd
+        l.delete()
+    traceEnd.clear()
     tbl.clear(0, 0, 4, 21)
 
     string tf = tfLabel()
@@ -219,6 +248,12 @@ if barstate.islast
         bool  stale   = freshOnly and tested
         // Junk filter: a body that is tiny next to the surrounding candles only counts once it's 2x+ hidden.
         bool  junk    = z.small and nHidden < 2
+        if z.traced
+            string st = "now: " + str.tostring(nHidden) + "x hidden, touches total " + pctOf(z.eaten, z)
+                 + (junk ? " | hidden as junk (small, under 2x)" : "") + (nHidden < minHidden ? " | under min hidden" : "")
+                 + (gone ? " | open candle past allowance" : "") + (stale ? " | hidden: price in zone now" : "")
+            traceEnd.push(label.new(bar_index, z.top, st, style = label.style_label_left, size = size.small,
+                 color = color.new(color.blue, 10), textcolor = color.white))
         if nHidden >= minHidden and not gone and not stale and not junk
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
