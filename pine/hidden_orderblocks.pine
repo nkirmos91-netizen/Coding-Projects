@@ -194,15 +194,16 @@ if barstate.islast
         bool  fBull   = high[1] <= z.bot + buf and high >= z.top - buf
         bool  fSame   = (fBear and z.bear) or (fBull and not z.bear)
         bool  forming = liveIn and (fSame or ((fBear or fBull) and z.hidden > 0))
-        // The open candle is filling the gap left by the last FVG candle.
+        // The open candle has already filled the gap left by the last FVG candle: there
+        // was no FVG, and a high or low once reached can't be undone, so the zone is gone.
         bool  gapFill = not barstate.isconfirmed and z.gapDir != 0 and (z.gapDir > 0 ? high > z.bot + buf : low < z.top - buf)
         int   nHidden = z.hidden + (forming ? 1 : 0)
         bool  isBear  = (z.top + z.bot) / 2 > close
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        if nHidden >= minHidden
+        if nHidden >= minHidden and not gapFill
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
-                bool   tested = (liveIn and not forming) or gapFill
+                bool   tested = liveIn and not forming
                 color  c      = zoneColor(nHidden, base)
                 string note   = (forming ? "  forming" : tested ? "  testing" : "") + (touched ? "  touched" : "")
                 boxes.push(box.new(z.openTime, z.top, time, z.bot, xloc = xloc.bar_time, extend = extend.right,

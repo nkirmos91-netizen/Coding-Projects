@@ -134,7 +134,7 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
     for z in active:
         v = judge(z, len(closed), live, closed[-1], params.touch_buffer_pct) if live else NONE
         if live and z.gap_dir and gap_filled(z, live, params.touch_buffer_pct):
-            v = KILL  # the open candle is filling the gap left by the last FVG candle
+            continue  # the open candle already filled the gap: there was no FVG
         forming = v in FVG
         hidden = z.hidden + (1 if forming else 0)
         if hidden >= params.min_hidden:

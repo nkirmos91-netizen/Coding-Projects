@@ -81,7 +81,7 @@ def test_gap_left_open_keeps_count():
     assert f and f.hidden == 1
 
 
-def test_open_candle_filling_gap_is_testing():
-    f = zone(detect(EURUSD_3W[:6] + [EURUSD_3W[6].__class__(EURUSD_3W[6].t, 1.1248, 1.1430, 1.12, 1.13)],
-                    last_is_live=True), 1.1417)
-    assert f and f.testing
+def test_open_candle_filling_gap_removes_zone():
+    # GOOG 2W: a wick crosses the body and the still-open candle has already filled the gap.
+    filled = EURUSD_3W[6].__class__(EURUSD_3W[6].t, 1.1248, 1.1430, 1.12, 1.13)
+    assert zone(detect(EURUSD_3W[:6] + [filled], last_is_live=True), 1.1417) is None
