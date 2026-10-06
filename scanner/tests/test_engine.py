@@ -26,12 +26,13 @@ def test_eurusd_3w_forming_while_fvg_candle_open():
 
 
 def test_link_touched_within_buffer():
-    f = zone(detect(LINK_1W, Params(fresh_only=False)), 8.381)
+    f = zone(detect(LINK_1W), 8.381)
     assert f and f.hidden == 1 and f.touched and not f.zone.bear
 
 
 def test_link_wick_past_buffer_mitigates():
-    deeper = LINK_1W[:3] + [LINK_1W[3].__class__(LINK_1W[3].t, 8.378, 8.43, 8.0, 8.18)] + LINK_1W[4:]
+    # 8.46 is ~18% into the 8.381-8.825 body: past the 15% allowance.
+    deeper = LINK_1W[:3] + [LINK_1W[3].__class__(LINK_1W[3].t, 8.378, 8.46, 8.0, 8.18)] + LINK_1W[4:]
     assert zone(detect(deeper), 8.381) is None
 
 
@@ -62,9 +63,9 @@ def test_live_candle_tapping_is_testing_not_removed():
     assert f and f.testing and f.hidden == 3
 
 
-def test_fresh_only_drops_touched_and_testing():
+def test_fresh_only_drops_testing_keeps_touched():
     from hobscan.engine import Bar
-    assert zone(detect(LINK_1W), 8.381) is None
+    assert zone(detect(LINK_1W), 8.381).touched
     tap = Bar(CADJPY_4D[-1].t + 1, 110.7, 113.8, 110.6, 111.0)
     assert zone(detect(CADJPY_4D + [tap], last_is_live=True), 113.64) is None
 
@@ -134,3 +135,31 @@ def test_small_body_kept_when_2x_hidden():
     assert f and f.hidden == 2
     # Cut off after the first FVG (1x): the same small body is junk.
     assert zone(detect(seq[:-3]), 0.418) is None
+
+
+def test_ibkr_1m_wick_6pct_after_fvg_is_touched_2x():
+    # Exact IBKR monthly candles. Body 44.167-47.912; Apr 2025 high 44.395 is 6.1% into it.
+    from hobscan.engine import Bar
+    rows = [("2024-11-01", 38.188, 48.355, 38.013, 47.772), ("2024-12-02", 47.912, 48.353, 42.772, 44.167),
+            ("2025-01-02", 44.395, 55.272, 43.397, 54.36), ("2025-02-03", 52.607, 59.132, 49.722, 51.1),
+            ("2025-03-03", 52.287, 52.908, 39.303, 41.397), ("2025-04-01", 41.35, 44.395, 32.82, 42.963),
+            ("2025-05-01", 43.188, 53.535, 43.1, 52.42), ("2025-06-02", 52.237, 55.62, 49.15, 55.41),
+            ("2025-07-01", 55.57, 66.82, 53.14, 65.56), ("2025-08-01", 63.71, 68.07, 60.06, 62.24)]
+    from datetime import datetime, timezone
+    seq = [Bar(int(datetime.fromisoformat(d).replace(tzinfo=timezone.utc).timestamp() * 1000), o, h, l, c)
+           for d, o, h, l, c in rows]
+    f = zone(detect(seq), 44.167)
+    assert f and f.hidden == 2 and f.touched
+    assert zone(detect(seq, Params(touch_buffer_pct=5)), 44.167) is None
+
+
+def test_touches_add_up_from_both_sides():
+    # Bearish body 1.00-1.10. A 10% touch from below, then (after a second FVG) a 10% touch
+    # from above: 20% in total, past the 15% allowance -> mitigated.
+    from hobscan.samples import bars
+    seq = bars([(0.95, 1.0, 0.94, 0.96), (1.10, 1.12, 0.99, 1.00), (1.00, 1.25, 0.99, 1.24),
+                (1.24, 1.26, 1.20, 1.21), (1.21, 1.22, 0.70, 0.72), (0.72, 1.01, 0.70, 0.75),
+                (0.75, 0.80, 0.70, 0.78), (0.78, 1.40, 0.77, 1.38), (1.38, 1.40, 1.09, 1.30)])
+    f = zone(detect(seq[:8]), 1.0)
+    assert f and f.hidden == 2 and f.touched
+    assert zone(detect(seq), 1.0) is None

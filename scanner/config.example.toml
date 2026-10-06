@@ -8,9 +8,9 @@ output = "output/hob_scan.html"
 [detection]
 min_body_pct = 10       # body as % of the candle's full range
 min_body_atr = 0.15     # 1x zones: body vs the 14-candle ATR; drops tiny "junk" zones (2x+ always kept)
-touch_buffer_pct = 5    # wick may reach this % of the body (from either edge) and stay valid
+touch_buffer_pct = 15   # total depth of all wicks into the body (both sides combined), % of body height
 min_hidden = 1
-fresh_only = true       # only zones price has never reached into (no touched / testing zones)
+fresh_only = true       # hide zones price is trading into right now (touched zones stay, labelled)
 
 [ranking]
 touched_penalty = 0.85  # score multiplier for zones that have been touched

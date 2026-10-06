@@ -8,17 +8,15 @@ For a candidate candle **Z**, the body is the range between its open and close:
 
 1. Z's colour must match the **first** FVG that hides it (see 3). On the chart and in the scanner, a zone above price is shown as **bearish** (resistance) and below price as **bullish** (support).
 2. The candle straight after Z may cross the body only by closing beyond its far side (the move away). If its wick goes back into the body, the zone is mitigated.
-3. After that, every candle **M** that trades into the body must be an FVG candle whose **body** carries price through the whole zone. It is confirmed when M closes:
-   - Bearish: `low[M-1] >= bodyTop` and `close[M] <= bodyBottom`
-   - Bullish: `high[M-1] <= bodyBottom` and `close[M] >= bodyTop`
-   - A wick through the zone that closes back on the near side doesn't count (it mitigates the zone).
-   - The candle after M must leave the gap open: after a bearish FVG candle its high must stay below the body (`high[M+1] <= bodyBottom`), after a bullish one its low must stay above (`low[M+1] >= bodyTop`). Otherwise there was no FVG (for example, just a wick through the body) and the zone is mitigated.
-   - While M is still open and already trading beyond the far side, the zone shows as **forming** (dashed border).
-   - The **first** covering FVG must be the same colour as Z; that makes it 1x hidden. An opposite-colour first FVG invalidates the zone.
-   - After that, every further covering FVG of either colour adds **+1 hidden**.
-4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
-   - **Touch buffer** (default 5% of the body height): a wick that only reaches into the outer 5% from either edge is allowed. The zone stays valid but is marked **touched** (yellow border, "touched" in its label).
-   - **Fresh only** (default on): touched zones, and zones price is trading into right now, are hidden. Turn it off to see them labelled.
+3. After that, every candle **M** that trades into the body is judged when it closes:
+   - If it's an FVG candle whose **body** carries price through the whole zone, it adds a level of hidden:
+     - Bearish: `low[M-1] >= bodyTop` and `close[M] <= bodyBottom`
+     - Bullish: `high[M-1] <= bodyBottom` and `close[M] >= bodyTop`
+     - The **first** one must be the same colour as Z; that makes it 1x hidden. After that, either colour adds **+1 hidden**.
+     - While M is still open and already trading beyond the far side, the zone shows as **forming** (dashed border).
+   - Anything else is a **touch**: its depth into the body (from the nearer edge) is added to a running total, wicks from above and below combined.
+4. **Touch allowance** (default 15% of the body height): while the total of all touches stays within it, the zone is valid and labelled **touched**. Past it, the zone is mitigated (the liquidity is taken) and removed. This also covers a wick through the body with no gap after it, or the candle after an FVG candle filling the gap.
+   - Zones the current candle is trading into past the allowance show as **testing**, and are hidden by default.
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
 6. Junk filter: a **1x** zone's body must be at least **0.15× the 14-candle ATR**, so 1x zones that are tiny next to the surrounding candles are skipped (e.g. BKNG 2W 120.93–121.98, about 0.1×). Zones hidden **2x or more** are kept whatever their size (e.g. SAND 1M 0.418–0.431, about 0.05×, 2x).
 
@@ -43,7 +41,8 @@ Detection only uses candles from the chart's own timeframe.
 | Chart | Zone | Expected |
 |---|---|---|
 | CADJPY 4D (OANDA) | ~113.64 – 113.96 (Jul 2026) | 3x bearish |
-| LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched (hidden when Fresh only is on) |
+| LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched |
+| IBKR 1M (NASDAQ) | 44.167 – 47.912 (Dec 2024) | 2x, touched (Apr 2025 wick 6.1% into the body) |
 | SOLUSDT.P 7D (Bybit) | ~89.2 – 91.0 (May 2026) | 1x bullish (body ~17% of range) |
 | HYPEUSDT.P 5D (Bybit) | ~24.0 – 24.7 (Jan 2026) | 1x bullish (~74% below price) |
 | EURUSD 5D (OANDA) | ~1.1525 – 1.1555 (Aug 2026) | 1x bearish |

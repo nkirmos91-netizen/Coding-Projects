@@ -3,28 +3,25 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 
 // -----------------------------------------------------------------------------
 // HIDDEN ORDERBLOCK
-// A candle body (open->close) that price has only ever crossed *inside* an FVG.
-// Every time price skips over the body via an FVG that covers the WHOLE body,
-// the body becomes one level more "hidden" (1x, 2x, 3x ...).
-// Any other candle trading into the body (wick or body) mitigates it -> dead.
+// A candle body (open->close) that price has only ever crossed inside FVGs.
+// Every FVG whose candle carries price through the WHOLE body adds a level of
+// "hidden" (1x, 2x, 3x ...).
 //
 // Rules, for candidate candle Z:
 //   * Z's colour must match the first FVG that hides it. On the chart, zones above
 //     price show as bearish (resistance) and below price as bullish (support).
 //   * The candle straight after Z may cross the body only by closing beyond its
-//     far side (the move away). A wick back into the body mitigates it.
+//     far side (the move away).
 //   * From then on, for every candle M that enters the body (judged when M closes):
-//       - M is an FVG candle crossing the whole body       -> hidden += 1
+//       - M is an FVG candle whose body carries price through   -> hidden += 1
 //           bearish: low[M-1] >= bodyTop and close[M] <= bodyBot
 //           bullish: high[M-1] <= bodyBot and close[M] >= bodyTop
-//         (its body carries price through; a wick through the body doesn't count)
-//         (the candle after M must stay out of the body, or it mitigates the zone)
-//         The FIRST covering FVG must be the zone's colour; once confirmed,
-//         later FVGs of either colour add a level. The candle after M must leave
-//         the gap open (bearish: high <= bodyBot, bullish: low >= bodyTop), or the
-//         zone is mitigated.
-//       - a wick only into the outer touch buffer           -> allowed, marked touched
-//       - otherwise (any wick or body into it)              -> mitigated
+//         The FIRST such FVG must be the zone's colour; after that either colour counts.
+//       - anything else is a touch: its depth into the body is added to a running
+//         total (wicks from above and below combined). Within the allowance
+//         (default 15% of body height) the zone stays valid, marked touched;
+//         past it, the zone is mitigated. This also covers the candle after an
+//         FVG candle filling the gap.
 //   * Junk filter: a 1x zone's body must be at least 0.15x the 14-candle ATR
 //     (setting). Zones hidden 2x or more are kept whatever their size.
 // -----------------------------------------------------------------------------
@@ -33,12 +30,12 @@ const string G_DET = "Detection"
 int   minHidden  = input.int(1, "Min hidden count to show", minval = 1, group = G_DET)
 float minBodyPct = input.float(10.0, "Min body size (% of candle range)", minval = 0, maxval = 100, step = 5, group = G_DET,
      tooltip = "Filters tiny-body / big-wick candles. A body around 50% of the range (body and wicks even) is ideal.")
-bool  freshOnly  = input.bool(true, "Fresh only (hide touched / testing zones)", group = G_DET,
-     tooltip = "Only show zones price has never reached into. Off: touched and currently-tested zones are shown and labelled.")
+bool  freshOnly  = input.bool(true, "Hide zones price is in now (testing)", group = G_DET,
+     tooltip = "Hides zones the current candle is trading into. Zones touched within the allowance stay visible, labelled 'touched'.")
 float minBodyAtr = input.float(0.15, "Min body size (x ATR 14)", minval = 0, step = 0.05, group = G_DET,
      tooltip = "Hides 1x 'junk' zones whose body is tiny next to the surrounding candles: the body must be at least this multiple of the 14-candle average true range. Zones hidden 2x or more are always shown. 0 = off.")
-float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxval = 49, step = 1, group = G_DET,
-     tooltip = "A wick may reach this far into the body (from either edge) without mitigating it. The zone is then marked as touched.")
+float touchBuf   = input.float(15.0, "Touch allowance (% of body, all wicks combined)", minval = 0, maxval = 100, step = 1, group = G_DET,
+     tooltip = "Wicks may reach into the body from above or below. Their depths are added up; while the total stays within this % of the body height the zone is valid (labelled touched). Past it, the zone is mitigated.")
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
      tooltip = "Performance cap. When exceeded, the oldest candidate that is not hidden yet is dropped.")
 
@@ -67,7 +64,7 @@ type Zone
     bool         bear
     bool         touched = false
     bool         small = false
-    int          gapDir = 0
+    float        eaten = 0.0
     int          hidden = 0
     int          endTime
 
@@ -106,22 +103,19 @@ if barstate.isconfirmed and bar_index >= 1
     int i = active.size() - 1
     while i >= 0
         Zone z = active.get(i)
-        // Inner body = body minus the touch buffer at each edge. Reaching only into the
-        // buffer is a touch (allowed, flagged); reaching the inner body must be an FVG.
-        float buf     = (z.top - z.bot) * touchBuf / 100
-        bool  inBody  = bar_index > z.barIdx and high > z.bot and low < z.top
-        bool  inInner = inBody and high > z.bot + buf and low < z.top - buf
-        bool  killed  = false
-        if z.gapDir != 0
-            // The candle after an FVG candle must leave the gap open, or there was no FVG.
-            killed := z.gapDir > 0 ? high > z.bot + buf : low < z.top - buf
-            z.gapDir := 0
-        if not killed and inBody and bar_index == z.barIdx + 1
+        // Touches: any candle reaching into the body that isn't an FVG candle adds its depth
+        // (from the nearer edge) to a running total; past the allowance, the zone is mitigated.
+        float buf    = (z.top - z.bot) * touchBuf / 100
+        bool  inBody = bar_index > z.barIdx and high > z.bot and low < z.top
+        bool  killed = false
+        if inBody and bar_index == z.barIdx + 1
             // The move away: it may only cross the body by closing beyond the far side.
-            killed := z.bear ? close <= z.top - buf : close >= z.bot + buf
-            if not killed and (z.bear ? close <= z.top : close >= z.bot)
+            float d = z.bear ? math.max(0, z.top - close) : math.max(0, close - z.bot)
+            if d > 0
+                z.eaten := z.eaten + d
                 z.touched := true
-        else if not killed and inInner
+                killed := z.eaten > buf
+        else if inBody
             // The FVG candle's body must carry price through: it closes beyond the far side.
             bool bearCover = low[1] >= z.top - buf and close <= z.bot + buf
             bool bullCover = high[1] <= z.bot + buf and close >= z.top - buf
@@ -129,13 +123,12 @@ if barstate.isconfirmed and bar_index >= 1
             // The first FVG must match the zone's colour; after that any covering FVG counts.
             if sameColour or ((bearCover or bullCover) and z.hidden > 0)
                 z.hidden := z.hidden + 1
-                z.gapDir := bearCover ? 1 : -1
                 if z.hidden >= minHidden
                     levelUp := true
             else
-                killed := true
-        else if not killed and inBody
-            z.touched := true
+                z.eaten := z.eaten + math.min(z.top - math.max(low, z.bot), math.min(high, z.top) - z.bot)
+                z.touched := true
+                killed := z.eaten > buf
         if killed
             if z.hidden >= minHidden
                 mitigatedNow := true
@@ -206,26 +199,29 @@ if barstate.islast
         // Forming: the still-open candle is crossing the body as an FVG candle.
         // It is confirmed when that candle closes.
         bool  liveIn  = not barstate.isconfirmed and bar_index > z.barIdx + 1 and high > z.bot and low < z.top
-        bool  touched = z.touched or (liveIn and not (high > z.bot + (z.top - z.bot) * touchBuf / 100 and low < z.top - (z.top - z.bot) * touchBuf / 100))
         float buf     = (z.top - z.bot) * touchBuf / 100
         // Forming only if the open candle's body is already through the zone, not just a wick.
         bool  fBear   = low[1] >= z.top - buf and close <= z.bot + buf
         bool  fBull   = high[1] <= z.bot + buf and close >= z.top - buf
         bool  fSame   = (fBear and z.bear) or (fBull and not z.bear)
         bool  forming = liveIn and (fSame or ((fBear or fBull) and z.hidden > 0))
-        // The open candle has already filled the gap left by the last FVG candle: there
-        // was no FVG, and a high or low once reached can't be undone, so the zone is gone.
-        bool  gapFill = not barstate.isconfirmed and z.gapDir != 0 and (z.gapDir > 0 ? high > z.bot + buf : low < z.top - buf)
+        float lDepth  = liveIn and not forming ? math.min(z.top - math.max(low, z.bot), math.min(high, z.top) - z.bot) : 0.0
+        bool  touched = z.touched or lDepth > 0
+        bool  pastAllowance = z.eaten + lDepth > buf
+        // Past the allowance and the candle before was inside the zone, so this one can't turn
+        // into an FVG candle: a high or low once reached can't be undone, so the zone is gone.
+        bool  prevClear = low[1] >= z.top - buf or high[1] <= z.bot + buf
+        bool  gone    = pastAllowance and not prevClear
         int   nHidden = z.hidden + (forming ? 1 : 0)
         bool  isBear  = (z.top + z.bot) / 2 > close
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        bool  stale   = freshOnly and (touched or (liveIn and not forming))
+        bool  tested  = pastAllowance and not forming
+        bool  stale   = freshOnly and tested
         // Junk filter: a body that is tiny next to the surrounding candles only counts once it's 2x+ hidden.
         bool  junk    = z.small and nHidden < 2
-        if nHidden >= minHidden and not gapFill and not stale and not junk
+        if nHidden >= minHidden and not gone and not stale and not junk
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
-                bool   tested = liveIn and not forming
                 color  c      = zoneColor(nHidden, base)
                 string note   = (forming ? "  forming" : tested ? "  testing" : "") + (touched ? "  touched" : "")
                 boxes.push(box.new(z.openTime, z.top, time, z.bot, xloc = xloc.bar_time, extend = extend.right,
