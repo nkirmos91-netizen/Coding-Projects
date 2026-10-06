@@ -48,6 +48,7 @@ def load(path: str | Path) -> Config:
             min_body_pct=det.get("min_body_pct", 10),
             touch_buffer_pct=det.get("touch_buffer_pct", 5),
             min_hidden=det.get("min_hidden", 1),
+            fresh_only=det.get("fresh_only", True),
         ),
         touched_penalty=raw.get("ranking", {}).get("touched_penalty", 0.85),
         crypto=raw.get("crypto", {}),

@@ -26,7 +26,7 @@ def test_eurusd_3w_forming_while_fvg_candle_open():
 
 
 def test_link_touched_within_buffer():
-    f = zone(detect(LINK_1W), 8.381)
+    f = zone(detect(LINK_1W, Params(fresh_only=False)), 8.381)
     assert f and f.hidden == 1 and f.touched and not f.zone.bear
 
 
@@ -58,8 +58,15 @@ def test_later_wick_into_body_mitigates():
 def test_live_candle_tapping_is_testing_not_removed():
     from hobscan.engine import Bar
     tap = Bar(CADJPY_4D[-1].t + 1, 110.7, 113.8, 110.6, 111.0)
-    f = zone(detect(CADJPY_4D + [tap], last_is_live=True), 113.64)
+    f = zone(detect(CADJPY_4D + [tap], Params(fresh_only=False), last_is_live=True), 113.64)
     assert f and f.testing and f.hidden == 3
+
+
+def test_fresh_only_drops_touched_and_testing():
+    from hobscan.engine import Bar
+    assert zone(detect(LINK_1W), 8.381) is None
+    tap = Bar(CADJPY_4D[-1].t + 1, 110.7, 113.8, 110.6, 111.0)
+    assert zone(detect(CADJPY_4D + [tap], last_is_live=True), 113.64) is None
 
 
 def test_wick_through_body_without_gap_mitigates():

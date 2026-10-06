@@ -9,6 +9,7 @@ output = "output/hob_scan.html"
 min_body_pct = 10       # body as % of the candle's full range
 touch_buffer_pct = 5    # wick may reach this % of the body (from either edge) and stay valid
 min_hidden = 1
+fresh_only = true       # only zones price has never reached into (no touched / testing zones)
 
 [ranking]
 touched_penalty = 0.85  # score multiplier for zones that have been touched

@@ -37,6 +37,7 @@ class Params:
     min_body_pct: float = 10.0  # body as % of candle range
     touch_buffer_pct: float = 5.0  # % of body height allowed at each edge
     min_hidden: int = 1
+    fresh_only: bool = True  # drop zones that were touched or are being traded into now
 
 
 @dataclass
@@ -137,7 +138,10 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             continue  # the open candle already filled the gap: there was no FVG
         forming = v in FVG
         hidden = z.hidden + (1 if forming else 0)
+        touched = z.touched or v == TOUCH
+        if params.fresh_only and (touched or v == KILL):
+            continue
         if hidden >= params.min_hidden:
             found.append(Found(zone=z, hidden=hidden, forming=forming,
-                               testing=v == KILL, touched=z.touched or v == TOUCH))
+                               testing=v == KILL, touched=touched))
     return found

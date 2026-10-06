@@ -30,6 +30,8 @@ const string G_DET = "Detection"
 int   minHidden  = input.int(1, "Min hidden count to show", minval = 1, group = G_DET)
 float minBodyPct = input.float(10.0, "Min body size (% of candle range)", minval = 0, maxval = 100, step = 5, group = G_DET,
      tooltip = "Filters tiny-body / big-wick candles. A body around 50% of the range (body and wicks even) is ideal.")
+bool  freshOnly  = input.bool(true, "Fresh only (hide touched / testing zones)", group = G_DET,
+     tooltip = "Only show zones price has never reached into. Off: touched and currently-tested zones are shown and labelled.")
 float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxval = 49, step = 1, group = G_DET,
      tooltip = "A wick may reach this far into the body (from either edge) without mitigating it. The zone is then marked as touched.")
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
@@ -200,7 +202,8 @@ if barstate.islast
         int   nHidden = z.hidden + (forming ? 1 : 0)
         bool  isBear  = (z.top + z.bot) / 2 > close
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        if nHidden >= minHidden and not gapFill
+        bool  stale   = freshOnly and (touched or (liveIn and not forming))
+        if nHidden >= minHidden and not gapFill and not stale
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
                 bool   tested = liveIn and not forming

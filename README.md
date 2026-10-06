@@ -17,6 +17,7 @@ For a candidate candle **Z**, the body is the range between its open and close:
    - After that, every further covering FVG of either colour adds **+1 hidden**.
 4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
    - **Touch buffer** (default 5% of the body height): a wick that only reaches into the outer 5% from either edge is allowed. The zone stays valid but is marked **touched** (yellow border, "touched" in its label).
+   - **Fresh only** (default on): touched zones, and zones price is trading into right now, are hidden. Turn it off to see them labelled.
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
 
 Detection only uses candles from the chart's own timeframe.
@@ -40,7 +41,7 @@ Detection only uses candles from the chart's own timeframe.
 | Chart | Zone | Expected |
 |---|---|---|
 | CADJPY 4D (OANDA) | ~113.64 – 113.96 (Jul 2026) | 3x bearish |
-| LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched |
+| LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched (hidden when Fresh only is on) |
 | SOLUSDT.P 7D (Bybit) | ~89.2 – 91.0 (May 2026) | 1x bullish (body ~17% of range) |
 | HYPEUSDT.P 5D (Bybit) | ~24.0 – 24.7 (Jan 2026) | 1x bullish (~74% below price) |
 | EURUSD 5D (OANDA) | ~1.1525 – 1.1555 (Aug 2026) | 1x bearish |
