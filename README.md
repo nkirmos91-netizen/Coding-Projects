@@ -29,6 +29,7 @@ Detection only uses candles from the chart's own timeframe.
    - Fill is darker the more hidden a zone is.
    - "testing" means the current candle is trading into the zone.
 3. The table lists the visible zones ranked by hidden count, then by distance from price.
+   - Zones older than **Max zone age** (default 20 years) are hidden. **Max distance from price** is off by default.
 4. Three alerts are available:
    - hidden OB formed or gained a level
    - price tapping a hidden OB
@@ -41,6 +42,7 @@ Detection only uses candles from the chart's own timeframe.
 | CADJPY 4D (OANDA) | ~113.64 – 113.96 (Jul 2026) | 3x bearish |
 | LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched |
 | SOLUSDT.P 7D (Bybit) | ~89.2 – 91.0 (May 2026) | 1x bullish (body ~17% of range) |
+| HYPEUSDT.P 5D (Bybit) | ~24.0 – 24.7 (Jan 2026) | 1x bullish (~74% below price) |
 | EURUSD 5D (OANDA) | ~1.1525 – 1.1555 (Aug 2026) | 1x bearish |
 | NZDUSD 3W (FXCM) | ~0.6640 – 0.6705 (early 2022) | 1x bearish |
 
