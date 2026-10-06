@@ -15,8 +15,9 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //     far side (the move away). A wick back into the body mitigates it.
 //   * From then on, for every candle M that enters the body (judged when M closes):
 //       - M is an FVG candle crossing the whole body       -> hidden += 1
-//           bearish: low[M-1] >= bodyTop and low[M] <= bodyBot
-//           bullish: high[M-1] <= bodyBot and high[M] >= bodyTop
+//           bearish: low[M-1] >= bodyTop and close[M] <= bodyBot
+//           bullish: high[M-1] <= bodyBot and close[M] >= bodyTop
+//         (its body carries price through; a wick through the body doesn't count)
 //         (the candle after M must stay out of the body, or it mitigates the zone)
 //         The FIRST covering FVG must be the zone's colour; once confirmed,
 //         later FVGs of either colour add a level. The candle after M must leave
@@ -113,8 +114,9 @@ if barstate.isconfirmed and bar_index >= 1
             if not killed and (z.bear ? close <= z.top : close >= z.bot)
                 z.touched := true
         else if not killed and inInner
-            bool bearCover = low[1] >= z.top - buf and low <= z.bot + buf
-            bool bullCover = high[1] <= z.bot + buf and high >= z.top - buf
+            // The FVG candle's body must carry price through: it closes beyond the far side.
+            bool bearCover = low[1] >= z.top - buf and close <= z.bot + buf
+            bool bullCover = high[1] <= z.bot + buf and close >= z.top - buf
             bool sameColour = (bearCover and z.bear) or (bullCover and not z.bear)
             // The first FVG must match the zone's colour; after that any covering FVG counts.
             if sameColour or ((bearCover or bullCover) and z.hidden > 0)
@@ -197,8 +199,9 @@ if barstate.islast
         bool  liveIn  = not barstate.isconfirmed and bar_index > z.barIdx + 1 and high > z.bot and low < z.top
         bool  touched = z.touched or (liveIn and not (high > z.bot + (z.top - z.bot) * touchBuf / 100 and low < z.top - (z.top - z.bot) * touchBuf / 100))
         float buf     = (z.top - z.bot) * touchBuf / 100
-        bool  fBear   = low[1] >= z.top - buf and low <= z.bot + buf
-        bool  fBull   = high[1] <= z.bot + buf and high >= z.top - buf
+        // Forming only if the open candle's body is already through the zone, not just a wick.
+        bool  fBear   = low[1] >= z.top - buf and close <= z.bot + buf
+        bool  fBull   = high[1] <= z.bot + buf and close >= z.top - buf
         bool  fSame   = (fBear and z.bear) or (fBull and not z.bear)
         bool  forming = liveIn and (fSame or ((fBear or fBull) and z.hidden > 0))
         // The open candle has already filled the gap left by the last FVG candle: there

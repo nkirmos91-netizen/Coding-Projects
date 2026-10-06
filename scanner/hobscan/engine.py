@@ -9,8 +9,8 @@ Rules for a candidate candle Z (body = open..close):
     far side (the move away). Closing inside the touch buffer marks it touched.
   * Every later candle M that reaches into the body is judged when it closes:
       - M crosses the whole body as an FVG candle -> hidden += 1
-          bearish: low[M-1] >= top - buf and low[M] <= bot + buf
-          bullish: high[M-1] <= bot + buf and high[M] >= top - buf
+          bearish: low[M-1] >= top - buf and close[M] <= bot + buf
+          bullish: high[M-1] <= bot + buf and close[M] >= top - buf
         The FIRST such FVG must be the zone's colour; after that either colour counts.
         The candle after M must leave the gap open (bearish: high <= bot + buf,
         bullish: low >= top - buf), or the zone is mitigated.
@@ -87,8 +87,10 @@ def judge(z: Zone, i: int, b: Bar, prev: Bar, buf_pct: float) -> str:
             return TOUCH
         return NONE
     if b.h > z.bot + buf and b.l < z.top - buf:
-        bear_cov = prev.l >= z.top - buf and b.l <= z.bot + buf
-        bull_cov = prev.h <= z.bot + buf and b.h >= z.top - buf
+        # The FVG candle's body must carry price through: it closes (or, while open,
+        # trades) beyond the far side. A wick through the body doesn't count.
+        bear_cov = prev.l >= z.top - buf and b.c <= z.bot + buf
+        bull_cov = prev.h <= z.bot + buf and b.c >= z.top - buf
         same = (bear_cov and z.bear) or (bull_cov and not z.bear)
         if same or ((bear_cov or bull_cov) and z.hidden > 0):
             return FVG_BEAR if bear_cov else FVG_BULL

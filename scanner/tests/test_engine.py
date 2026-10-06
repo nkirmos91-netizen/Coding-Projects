@@ -83,7 +83,7 @@ def test_gap_left_open_keeps_count():
     from hobscan.samples import bars
     seq = bars([
         (222, 225, 214, 220.08), (220.08, 222, 214.5, 216.37), (216.37, 229, 215, 228),
-        (228, 252, 230, 250), (250, 253, 214, 222), (210, 215, 200, 205)])
+        (228, 252, 230, 250), (250, 253, 214, 215), (210, 215, 200, 205)])
     f = zone(detect(seq), 216.37)
     assert f and f.hidden == 1
 
@@ -102,3 +102,22 @@ def test_junk_zone_tiny_next_to_surrounding_candles_dropped():
                        (110.0, 135.0, 109.0, 133.0), (133.0, 140.0, 125.0, 138.0)])
     assert zone(detect(seq, Params(min_body_atr=0)), 116.0) is not None
     assert zone(detect(seq), 116.0) is None
+
+
+def test_wick_through_on_open_candle_is_not_forming():
+    # SAND 5D: bullish body 0.07498-0.08319; the open candle wicks up through it but is
+    # trading back below at 0.06699 -> not a forming FVG; it's trading into the zone.
+    from hobscan.samples import bars
+    seq = bars([(0.074, 0.085, 0.0735, 0.0749), (0.07498, 0.0845, 0.074, 0.08319), (0.08319, 0.0835, 0.070, 0.0705),
+                (0.0705, 0.071, 0.050, 0.052), (0.052, 0.0705, 0.050, 0.0688), (0.06877, 0.08423, 0.06143, 0.06699)])
+    f = zone(detect(seq, Params(fresh_only=False), last_is_live=True), 0.07498)
+    assert f is None or (not f.forming)
+    assert zone(detect(seq, last_is_live=True), 0.07498) is None
+
+
+def test_body_through_on_open_candle_is_forming():
+    from hobscan.samples import bars
+    seq = bars([(0.074, 0.085, 0.0735, 0.0749), (0.07498, 0.0845, 0.074, 0.08319), (0.08319, 0.0835, 0.070, 0.0705),
+                (0.0705, 0.071, 0.050, 0.052), (0.052, 0.0705, 0.050, 0.0688), (0.06877, 0.0900, 0.06143, 0.0880)])
+    f = zone(detect(seq, last_is_live=True), 0.07498)
+    assert f and f.forming and f.hidden == 1
