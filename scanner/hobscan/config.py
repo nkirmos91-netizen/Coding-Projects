@@ -10,13 +10,18 @@ from .engine import Params
 @dataclass
 class Config:
     timeframes: list[str]
-    anchor: str = "first"
+    anchor: str = "first"  # fallback for markets without their own setting
     output: str = "output/hob_scan.html"
     params: Params = field(default_factory=Params)
     touched_penalty: float = 0.85
     crypto: dict = field(default_factory=dict)
     stocks: dict = field(default_factory=dict)
     fx: dict = field(default_factory=dict)
+
+    def anchor_for(self, market: str) -> str:
+        """Where 2D-7D candles start: crypto counts calendar days, stocks count trading days."""
+        section = {"Crypto": self.crypto, "Stocks": self.stocks, "FX": self.fx}.get(market, {})
+        return section.get("anchor", {"Crypto": "epoch"}.get(market, self.anchor))
 
 
 def load(path: str | Path) -> Config:

@@ -3,10 +3,6 @@
 # Timeframes to scan. All are built from daily candles.
 timeframes = ["1D", "2D", "3D", "4D", "5D", "7D", "1W", "2W", "3W", "1M", "2M", "3M", "6M", "12M"]
 
-# Where multi-day / multi-week candles start: "first" (from the first candle in the
-# symbol's history) or "epoch" (fixed calendar grid). Still to be checked against TradingView.
-anchor = "first"
-
 output = "output/hob_scan.html"
 
 [detection]
@@ -20,12 +16,14 @@ touched_penalty = 0.85  # score multiplier for zones that have been touched
 [crypto]
 enabled = true
 exchange = "bybit"          # "bybit" or "binance" (USDT perpetuals)
+anchor = "epoch"            # 2D-7D candles count calendar days from 1970-01-01 (matches TradingView SOL 7D)
 min_market_cap_usd = 100_000_000
 min_volume_usd = 50_000_000 # perpetual's 24h traded value at scan time
 
 [stocks]
 enabled = true
 exchanges = ["NYSE", "NASDAQ", "ASX", "XETR"]
+anchor = "first"            # 2D-7D candles count trading days from the first candle (being checked)
 min_market_cap_usd = 150_000_000
 min_volume_usd = 15_000_000 # average daily traded value (10-day), converted to USD
 

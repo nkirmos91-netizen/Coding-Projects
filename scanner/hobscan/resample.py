@@ -5,9 +5,12 @@ bodies and FVGs come out different.
   * Months are calendar-aligned (3M starts Jan, Apr, Jul, Oct; 12M starts in January).
   * Weeks start on Monday; nW candles count from Monday 1970-01-05. Checked against
     TradingView 3W charts (MSFT, EURUSD, NZDUSD all start a 3W candle on 2026-10-05).
-  * nD candles: not yet checked. The anchor is configurable:
-      "first": count from the first candle in the symbol's history
-      "epoch": count calendar days from 1970-01-01
+  * nD candles, set per market:
+      "epoch": count calendar days from 1970-01-01. Matches TradingView for crypto
+               (BYBIT:SOLUSDT.P 7D candle starts 2026-10-01).
+      "first": count trading days from the first candle in the symbol's history.
+               Stocks count trading days on TradingView; the starting point is still
+               being checked (MSFT 5D is one day off).
 """
 
 from __future__ import annotations

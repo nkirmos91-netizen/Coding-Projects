@@ -54,3 +54,11 @@ def test_3w_matches_tradingview_boundary():
     w, _ = resample(d, "3W", now_ms=ms("2026-10-14"))
     starts = [datetime.fromtimestamp(b.t / 1000, timezone.utc).strftime("%Y-%m-%d") for b in w]
     assert starts == ["2026-09-14", "2026-10-05"]
+
+
+def test_crypto_7d_epoch_matches_tradingview():
+    # TradingView BYBIT:SOLUSDT.P 7D: current candle starts 2026-10-01.
+    d = daily("2026-09-20", 16)
+    w, _ = resample(d, "7D", now_ms=ms("2026-10-06"), anchor="epoch")
+    starts = [datetime.fromtimestamp(b.t / 1000, timezone.utc).strftime("%Y-%m-%d") for b in w]
+    assert starts == ["2026-09-20", "2026-09-24", "2026-10-01"]

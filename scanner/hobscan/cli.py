@@ -19,7 +19,7 @@ from .resample import resample, tv_interval
 def zones_for(inst: Instrument, daily: list[Bar], daily_live: bool, cfg: Config, now_ms: int) -> list[dict]:
     rows = []
     for tf in cfg.timeframes:
-        bars, live = resample(daily, tf, now_ms, daily_live, cfg.anchor)
+        bars, live = resample(daily, tf, now_ms, daily_live, cfg.anchor_for(inst.market))
         if len(bars) < 3:
             continue
         close = bars[-1].c
