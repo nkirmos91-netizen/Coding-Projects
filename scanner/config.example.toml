@@ -7,6 +7,7 @@ output = "output/hob_scan.html"
 
 [detection]
 min_body_pct = 10       # body as % of the candle's full range
+min_body_atr = 0.15     # body vs the 14-candle average true range; drops tiny "junk" zones
 touch_buffer_pct = 5    # wick may reach this % of the body (from either edge) and stay valid
 min_hidden = 1
 fresh_only = true       # only zones price has never reached into (no touched / testing zones)

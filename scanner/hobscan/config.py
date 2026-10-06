@@ -46,6 +46,7 @@ def load(path: str | Path) -> Config:
         output=raw.get("output", "output/hob_scan.html"),
         params=Params(
             min_body_pct=det.get("min_body_pct", 10),
+            min_body_atr=det.get("min_body_atr", 0.15),
             touch_buffer_pct=det.get("touch_buffer_pct", 5),
             min_hidden=det.get("min_hidden", 1),
             fresh_only=det.get("fresh_only", True),

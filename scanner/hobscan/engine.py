@@ -35,6 +35,7 @@ class Bar:
 @dataclass
 class Params:
     min_body_pct: float = 10.0  # body as % of candle range
+    min_body_atr: float = 0.15  # body as a multiple of the 14-candle ATR (drops "junk" zones)
     touch_buffer_pct: float = 5.0  # % of body height allowed at each edge
     min_hidden: int = 1
     fresh_only: bool = True  # drop zones that were touched or are being traded into now
@@ -103,7 +104,16 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
     """
     closed = bars[:-1] if last_is_live and bars else bars
     active: list[Zone] = []
+    atr = None  # Wilder's ATR(14), same as TradingView's ta.atr(14)
+    trs: list[float] = []
     for i, b in enumerate(closed):
+        tr = b.h - b.l if i == 0 else max(b.h, closed[i - 1].c) - min(b.l, closed[i - 1].c)
+        if atr is None:
+            trs.append(tr)
+            if len(trs) == 14:
+                atr = sum(trs) / 14
+        else:
+            atr = (atr * 13 + tr) / 14
         if i >= 1:
             prev = closed[i - 1]
             keep = []
@@ -126,7 +136,8 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             active = keep
         rng = b.h - b.l
         body = abs(b.c - b.o)
-        if rng > 0 and body > 0 and body / rng * 100 >= params.min_body_pct:
+        if (rng > 0 and body > 0 and body / rng * 100 >= params.min_body_pct
+                and (atr is None or body >= params.min_body_atr * atr)):
             active.append(Zone(idx=i, t=b.t, top=max(b.o, b.c), bot=min(b.o, b.c),
                                bear=b.c < b.o, body_pct=body / rng * 100))
 

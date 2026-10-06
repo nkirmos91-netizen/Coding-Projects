@@ -92,3 +92,13 @@ def test_open_candle_filling_gap_removes_zone():
     # GOOG 2W: a wick crosses the body and the still-open candle has already filled the gap.
     filled = EURUSD_3W[6].__class__(EURUSD_3W[6].t, 1.1248, 1.1430, 1.12, 1.13)
     assert zone(detect(EURUSD_3W[:6] + [filled], last_is_live=True), 1.1417) is None
+
+
+def test_junk_zone_tiny_next_to_surrounding_candles_dropped():
+    # BKNG 2W: body ~1.05 among candles ranging ~10 (about 0.1x ATR) -> junk.
+    from hobscan.samples import bars
+    lead = [(100 + k, 106 + k, 96 + k, 103 + k) for k in range(15)]  # ranges ~10
+    seq = bars(lead + [(116.0, 120.0, 113.0, 117.05), (117.05, 118.0, 108.0, 109.0), (109.0, 112.0, 104.0, 110.0),
+                       (110.0, 135.0, 109.0, 133.0), (133.0, 140.0, 125.0, 138.0)])
+    assert zone(detect(seq, Params(min_body_atr=0)), 116.0) is not None
+    assert zone(detect(seq), 116.0) is None

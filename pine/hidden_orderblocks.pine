@@ -24,6 +24,7 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //         zone is mitigated.
 //       - a wick only into the outer touch buffer           -> allowed, marked touched
 //       - otherwise (any wick or body into it)              -> mitigated
+//   * Junk filter: the body must be at least 0.15x the 14-candle ATR (setting).
 // -----------------------------------------------------------------------------
 
 const string G_DET = "Detection"
@@ -32,6 +33,8 @@ float minBodyPct = input.float(10.0, "Min body size (% of candle range)", minval
      tooltip = "Filters tiny-body / big-wick candles. A body around 50% of the range (body and wicks even) is ideal.")
 bool  freshOnly  = input.bool(true, "Fresh only (hide touched / testing zones)", group = G_DET,
      tooltip = "Only show zones price has never reached into. Off: touched and currently-tested zones are shown and labelled.")
+float minBodyAtr = input.float(0.15, "Min body size (x ATR 14)", minval = 0, step = 0.05, group = G_DET,
+     tooltip = "Skips 'junk' zones whose body is tiny next to the surrounding candles. Body must be at least this multiple of the 14-candle average true range. 0 = off.")
 float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxval = 49, step = 1, group = G_DET,
      tooltip = "A wick may reach this far into the body (from either edge) without mitigating it. The zone is then marked as touched.")
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
@@ -84,6 +87,8 @@ bool levelUp   = false
 bool mitigatedNow = false
 
 // -- Update on closed candles only. Candle M = previous bar, its neighbours are bar[2] and the bar that just closed.
+float atr14 = ta.atr(14)
+
 // Each candle is judged when it closes. An FVG counts as soon as the candle that
 // crosses the body has closed: the candle before it never touched the body and it
 // traded straight through. If a later candle trades back into the body, that later
@@ -137,7 +142,7 @@ if barstate.isconfirmed and bar_index >= 1
     float rng  = high - low
     if rng > 0 and bTop > bBot
         float pct = (bTop - bBot) / rng * 100
-        if pct >= minBodyPct
+        if pct >= minBodyPct and (na(atr14) or bTop - bBot >= minBodyAtr * atr14)
             active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open))
             if active.size() > maxTracked
                 int drop = 0
