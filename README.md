@@ -49,5 +49,6 @@ Detection only uses candles from the chart's own timeframe.
 ## Roadmap
 
 - [x] Pine indicator to confirm the detection matches what's seen on charts
-- [ ] Python scanner: crypto, indices, commodities, stocks and FX, on timeframes from 4H to 12M
-- [ ] Quality ranking: timeframe weight × hidden count × body quality
+- [x] Python scanner (`scanner/`): crypto and stocks on 1D–12M, ranked page
+- [ ] Scanner: FXCM connection for FX, commodities and indices
+- [ ] Scanner: check multi-day/week candle start dates against TradingView

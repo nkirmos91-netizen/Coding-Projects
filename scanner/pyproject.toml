@@ -1,0 +1,10 @@
+[project]
+name = "hobscan"
+version = "0.1.0"
+description = "Hidden orderblock scanner"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31", "yfinance>=0.2.54"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

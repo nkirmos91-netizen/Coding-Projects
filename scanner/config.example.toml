@@ -1,0 +1,33 @@
+# Hidden Orderblock Scanner settings. Copy to config.toml and edit.
+
+# Timeframes to scan. All are built from daily candles.
+timeframes = ["1D", "2D", "3D", "4D", "5D", "7D", "1W", "2W", "3W", "1M", "2M", "3M", "6M", "12M"]
+
+# Where multi-day / multi-week candles start: "first" (from the first candle in the
+# symbol's history) or "epoch" (fixed calendar grid). Still to be checked against TradingView.
+anchor = "first"
+
+output = "output/hob_scan.html"
+
+[detection]
+min_body_pct = 10       # body as % of the candle's full range
+touch_buffer_pct = 5    # wick may reach this % of the body (from either edge) and stay valid
+min_hidden = 1
+
+[ranking]
+touched_penalty = 0.85  # score multiplier for zones that have been touched
+
+[crypto]
+enabled = true
+exchange = "bybit"          # "bybit" or "binance" (USDT perpetuals)
+min_market_cap_usd = 100_000_000
+min_volume_usd = 50_000_000 # perpetual's 24h traded value at scan time
+
+[stocks]
+enabled = true
+exchanges = ["NYSE", "NASDAQ", "ASX", "XETR"]
+min_market_cap_usd = 150_000_000
+min_volume_usd = 15_000_000 # average daily traded value (10-day), converted to USD
+
+[fx]
+enabled = false             # FXCM: FX, commodities and indices (connection still to be set up)
