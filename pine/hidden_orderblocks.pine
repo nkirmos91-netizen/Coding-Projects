@@ -71,8 +71,8 @@ tfLabel() =>
         res := "1" + timeframe.period
     res
 
-zoneColor(Zone z, color base) =>
-    color.new(base, math.max(10, 70 - 15 * z.hidden))
+zoneColor(int hidden, color base) =>
+    color.new(base, math.max(10, 70 - 15 * hidden))
 
 var array<Zone> active    = array.new<Zone>()
 var array<Zone> mitigated = array.new<Zone>()
@@ -175,24 +175,38 @@ if barstate.islast
             boxes.push(box.new(z.openTime, z.top, z.endTime, z.bot, xloc = xloc.bar_time, bgcolor = mitCol, border_color = mitCol,
                  text = str.format("{0}x {1}", z.hidden, tf), text_color = color.gray, text_size = size.tiny, text_halign = text.align_right))
 
-    array<Zone>  shown  = array.new<Zone>()
-    array<float> scores = array.new<float>()
+    array<Zone>  shown   = array.new<Zone>()
+    array<int>   shownN  = array.new<int>()
+    array<bool>  shownF  = array.new<bool>()
+    array<float> scores  = array.new<float>()
     for z in active
-        bool  isBear  = z.bear
-        float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        bool  inRange = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
-        if z.hidden >= minHidden and inRange
+        // Provisional FVG: the last closed candle entered the body and the still-open
+        // candle currently completes a covering gap. Confirmed when that candle closes.
+        bool  prevIn   = not barstate.isconfirmed and bar_index - 1 > z.barIdx + 1 and high[1] > z.bot and low[1] < z.top
+        bool  pBearCov = low[2] >= z.top and high <= z.bot
+        bool  pBullCov = high[2] <= z.bot and low >= z.top
+        bool  pSame    = (pBearCov and z.bear) or (pBullCov and not z.bear)
+        bool  forming  = prevIn and (pSame or ((pBearCov or pBullCov) and z.hidden > 0))
+        int   nHidden  = z.hidden + (forming ? 1 : 0)
+        bool  isBear   = z.bear
+        float distPct  = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
+        bool  inRange  = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
+        if nHidden >= minHidden and inRange
             if (isBear and showBear) or (not isBear and showBull)
-                color base   = isBear ? bearCol : bullCol
-                bool  liveIn = bar_index > z.barIdx + 1 and high > z.bot and low < z.top
-                bool  prevIn = not barstate.isconfirmed and bar_index - 1 > z.barIdx + 1 and high[1] > z.bot and low[1] < z.top
-                bool  tested = liveIn or prevIn
-                color c      = zoneColor(z, base)
+                color  base   = isBear ? bearCol : bullCol
+                bool   liveIn = bar_index > z.barIdx + 1 and high > z.bot and low < z.top
+                bool   tested = liveIn or (prevIn and not forming)
+                color  c      = zoneColor(nHidden, base)
+                string note   = tested ? "  testing" : forming ? "  forming" : ""
                 boxes.push(box.new(z.openTime, z.top, time, z.bot, xloc = xloc.bar_time, extend = extend.right,
-                     bgcolor = c, border_color = c, border_style = tested ? line.style_dashed : line.style_solid,
-                     text = str.format("{0}x {1}{2}", z.hidden, tf, tested ? "  testing" : ""), text_color = color.white,
+                     bgcolor = c, border_color = c, border_style = tested or forming ? line.style_dashed : line.style_solid,
+                     text = str.format("{0}x {1}{2}", nHidden, tf, note), text_color = color.white,
                      text_size = size.small, text_halign = text.align_right))
-                if showMarks
+                if showMarks and forming
+                    marks.push(label.new(time[1], pBearCov ? high[1] : low[1], str.tostring(nHidden) + "?", xloc = xloc.bar_time,
+                         style = pBearCov ? label.style_label_down : label.style_label_up, color = color.new(base, 50),
+                         textcolor = color.white, size = size.tiny, tooltip = "Forming FVG: confirmed when the current candle closes without trading into the gap"))
+                if showMarks and z.fvgTimes.size() > 0
                     for k = 0 to z.fvgTimes.size() - 1
                         bool fb = z.fvgBear.get(k)
                         marks.push(label.new(z.fvgTimes.get(k), z.fvgPrices.get(k), str.tostring(k + 1), xloc = xloc.bar_time,
@@ -200,7 +214,9 @@ if barstate.islast
                              textcolor = color.white, size = size.tiny,
                              tooltip = str.format("Hiding FVG #{0} for zone {1} - {2}", k + 1, str.tostring(z.bot, format.mintick), str.tostring(z.top, format.mintick))))
                 shown.push(z)
-                scores.push(z.hidden * 1000.0 - math.abs(distPct))
+                shownN.push(nHidden)
+                shownF.push(forming)
+                scores.push(nHidden * 1000.0 - math.abs(distPct))
 
     if showTable
         table.cell(tbl, 0, 0, "HOB " + tf, text_color = color.white, bgcolor = color.new(color.black, 20), text_size = size.small)
@@ -214,12 +230,13 @@ if barstate.islast
             array<int> ranked = scores.sort_indices(order.descending)
             int n = math.min(tableRows, ranked.size())
             for r = 0 to n - 1
-                Zone  z      = shown.get(ranked.get(r))
+                int   idx    = ranked.get(r)
+                Zone  z      = shown.get(idx)
                 bool  isBear = z.bear
                 float dist   = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
                 color bg     = color.new(isBear ? bearCol : bullCol, 60)
                 table.cell(tbl, 0, r + 1, isBear ? "Bear" : "Bull", text_color = color.white, bgcolor = bg, text_size = size.small)
-                table.cell(tbl, 1, r + 1, str.tostring(z.hidden) + "x", text_color = color.white, bgcolor = bg, text_size = size.small)
+                table.cell(tbl, 1, r + 1, str.tostring(shownN.get(idx)) + "x" + (shownF.get(idx) ? " forming" : ""), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 2, r + 1, str.tostring(z.bot, format.mintick) + " - " + str.tostring(z.top, format.mintick), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 3, r + 1, str.tostring(dist, "#.##"), text_color = color.white, bgcolor = bg, text_size = size.small)
                 table.cell(tbl, 4, r + 1, str.tostring(z.bodyPct, "#"), text_color = color.white, bgcolor = bg, text_size = size.small)
