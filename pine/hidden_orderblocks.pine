@@ -9,7 +9,8 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 // Any other candle trading into the body (wick or body) mitigates it -> dead.
 //
 // Rules, for candidate candle Z:
-//   * Z's colour sets the zone: bearish candle = bearish zone, bullish = bullish.
+//   * Z's colour must match the first FVG that hides it. On the chart, zones above
+//     price show as bearish (resistance) and below price as bullish (support).
 //   * The candle straight after Z may cross the body only by closing beyond its
 //     far side (the move away). A wick back into the body mitigates it.
 //   * From then on, for every candle M that enters the body (judged when M closes):
@@ -18,7 +19,9 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //           bullish: high[M-1] <= bodyBot and high[M] >= bodyTop
 //         (the candle after M must stay out of the body, or it mitigates the zone)
 //         The FIRST covering FVG must be the zone's colour; once confirmed,
-//         later FVGs of either colour add a level.
+//         later FVGs of either colour add a level. The candle after M must leave
+//         the gap open (bearish: high <= bodyBot, bullish: low >= bodyTop), or the
+//         zone is mitigated.
 //       - a wick only into the outer touch buffer           -> allowed, marked touched
 //       - otherwise (any wick or body into it)              -> mitigated
 // -----------------------------------------------------------------------------
@@ -56,6 +59,7 @@ type Zone
     float        bodyPct
     bool         bear
     bool         touched = false
+    int          gapDir = 0
     int          hidden = 0
     int          endTime
 
@@ -92,23 +96,28 @@ if barstate.isconfirmed and bar_index >= 1
         bool  inBody  = bar_index > z.barIdx and high > z.bot and low < z.top
         bool  inInner = inBody and high > z.bot + buf and low < z.top - buf
         bool  killed  = false
-        if inBody and bar_index == z.barIdx + 1
+        if z.gapDir != 0
+            // The candle after an FVG candle must leave the gap open, or there was no FVG.
+            killed := z.gapDir > 0 ? high > z.bot + buf : low < z.top - buf
+            z.gapDir := 0
+        if not killed and inBody and bar_index == z.barIdx + 1
             // The move away: it may only cross the body by closing beyond the far side.
             killed := z.bear ? close <= z.top - buf : close >= z.bot + buf
             if not killed and (z.bear ? close <= z.top : close >= z.bot)
                 z.touched := true
-        else if inInner
+        else if not killed and inInner
             bool bearCover = low[1] >= z.top - buf and low <= z.bot + buf
             bool bullCover = high[1] <= z.bot + buf and high >= z.top - buf
             bool sameColour = (bearCover and z.bear) or (bullCover and not z.bear)
             // The first FVG must match the zone's colour; after that any covering FVG counts.
             if sameColour or ((bearCover or bullCover) and z.hidden > 0)
                 z.hidden := z.hidden + 1
+                z.gapDir := bearCover ? 1 : -1
                 if z.hidden >= minHidden
                     levelUp := true
             else
                 killed := true
-        else if inBody
+        else if not killed and inBody
             z.touched := true
         if killed
             if z.hidden >= minHidden
@@ -185,13 +194,15 @@ if barstate.islast
         bool  fBull   = high[1] <= z.bot + buf and high >= z.top - buf
         bool  fSame   = (fBear and z.bear) or (fBull and not z.bear)
         bool  forming = liveIn and (fSame or ((fBear or fBull) and z.hidden > 0))
+        // The open candle is filling the gap left by the last FVG candle.
+        bool  gapFill = not barstate.isconfirmed and z.gapDir != 0 and (z.gapDir > 0 ? high > z.bot + buf : low < z.top - buf)
         int   nHidden = z.hidden + (forming ? 1 : 0)
-        bool  isBear  = z.bear
+        bool  isBear  = (z.top + z.bot) / 2 > close
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
         if nHidden >= minHidden
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
-                bool   tested = liveIn and not forming
+                bool   tested = (liveIn and not forming) or gapFill
                 color  c      = zoneColor(nHidden, base)
                 string note   = (forming ? "  forming" : tested ? "  testing" : "") + (touched ? "  touched" : "")
                 boxes.push(box.new(z.openTime, z.top, time, z.bot, xloc = xloc.bar_time, extend = extend.right,
@@ -219,7 +230,7 @@ if barstate.islast
             for r = 0 to n - 1
                 int   idx    = ranked.get(r)
                 Zone  z      = shown.get(idx)
-                bool  isBear = z.bear
+                bool  isBear = (z.top + z.bot) / 2 > close
                 float dist   = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
                 color bg     = color.new(isBear ? bearCol : bullCol, 60)
                 table.cell(tbl, 0, r + 1, isBear ? "Bear" : "Bull", text_color = color.white, bgcolor = bg, text_size = size.small)

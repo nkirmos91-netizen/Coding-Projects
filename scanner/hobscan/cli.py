@@ -31,10 +31,11 @@ def zones_for(inst: Instrument, daily: list[Bar], daily_live: bool, cfg: Config,
         close = bars[-1].c
         for f in detect(bars, cfg.params, live):
             z = f.zone
-            dist = (z.bot - close) / close * 100 if z.bear else (close - z.top) / close * 100
+            above = (z.top + z.bot) / 2 > close  # above price = bearish (resistance)
+            dist = (z.bot - close) / close * 100 if above else (close - z.top) / close * 100
             rows.append({
                 "symbol": inst.symbol, "name": inst.name, "market": inst.market, "exchange": inst.exchange,
-                "tf": tf, "dir": "Bear" if z.bear else "Bull", "hidden": f.hidden,
+                "tf": tf, "dir": "Bear" if above else "Bull", "hidden": f.hidden,
                 "bot": z.bot, "top": z.top, "dist": dist, "body": z.body_pct,
                 "zone_date": datetime.fromtimestamp(z.t / 1000, timezone.utc).strftime("%Y-%m-%d"),
                 "touched": f.touched, "forming": f.forming, "testing": f.testing,

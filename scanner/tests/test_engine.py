@@ -60,3 +60,28 @@ def test_live_candle_tapping_is_testing_not_removed():
     tap = Bar(CADJPY_4D[-1].t + 1, 110.7, 113.8, 110.6, 111.0)
     f = zone(detect(CADJPY_4D + [tap], last_is_live=True), 113.64)
     assert f and f.testing and f.hidden == 3
+
+
+def test_wick_through_body_without_gap_mitigates():
+    # AMZN 2W: bearish body 216.37-220.08; a later candle's wick dips through it but the
+    # next candle trades straight back up, so there was never a gap.
+    from hobscan.samples import bars
+    seq = bars([
+        (222, 225, 214, 220.08), (220.08, 222, 214.5, 216.37), (216.37, 229, 215, 228),
+        (228, 252, 230, 250), (250, 253, 214, 222), (222, 251, 221.5, 245)])
+    assert zone(detect(seq), 216.37) is None
+
+
+def test_gap_left_open_keeps_count():
+    from hobscan.samples import bars
+    seq = bars([
+        (222, 225, 214, 220.08), (220.08, 222, 214.5, 216.37), (216.37, 229, 215, 228),
+        (228, 252, 230, 250), (250, 253, 214, 222), (210, 215, 200, 205)])
+    f = zone(detect(seq), 216.37)
+    assert f and f.hidden == 1
+
+
+def test_open_candle_filling_gap_is_testing():
+    f = zone(detect(EURUSD_3W[:6] + [EURUSD_3W[6].__class__(EURUSD_3W[6].t, 1.1248, 1.1430, 1.12, 1.13)],
+                    last_is_live=True), 1.1417)
+    assert f and f.testing

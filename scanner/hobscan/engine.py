@@ -12,6 +12,8 @@ Rules for a candidate candle Z (body = open..close):
           bearish: low[M-1] >= top - buf and low[M] <= bot + buf
           bullish: high[M-1] <= bot + buf and high[M] >= top - buf
         The FIRST such FVG must be the zone's colour; after that either colour counts.
+        The candle after M must leave the gap open (bearish: high <= bot + buf,
+        bullish: low >= top - buf), or the zone is mitigated.
       - M only reaches the outer touch buffer -> allowed, zone marked touched
       - anything else -> mitigated (zone removed)
 """
@@ -47,6 +49,7 @@ class Zone:
     body_pct: float
     hidden: int = 0
     touched: bool = False
+    gap_dir: int = 0  # +1 / -1: last candle was a bearish / bullish FVG candle; next must leave the gap open
     fvg_times: list[int] = field(default_factory=list)
 
 
@@ -59,7 +62,14 @@ class Found:
     touched: bool
 
 
-NONE, TOUCH, FVG, KILL = "none", "touch", "fvg", "kill"
+NONE, TOUCH, FVG_BEAR, FVG_BULL, KILL = "none", "touch", "fvg_bear", "fvg_bull", "kill"
+FVG = (FVG_BEAR, FVG_BULL)
+
+
+def gap_filled(z: Zone, b: Bar, buf_pct: float) -> bool:
+    """Whether candle `b`, right after an FVG candle, closed the gap over the body."""
+    buf = (z.top - z.bot) * buf_pct / 100
+    return b.h > z.bot + buf if z.gap_dir > 0 else b.l < z.top - buf
 
 
 def judge(z: Zone, i: int, b: Bar, prev: Bar, buf_pct: float) -> str:
@@ -79,7 +89,7 @@ def judge(z: Zone, i: int, b: Bar, prev: Bar, buf_pct: float) -> str:
         bull_cov = prev.h <= z.bot + buf and b.h >= z.top - buf
         same = (bear_cov and z.bear) or (bull_cov and not z.bear)
         if same or ((bear_cov or bull_cov) and z.hidden > 0):
-            return FVG
+            return FVG_BEAR if bear_cov else FVG_BULL
         return KILL
     return TOUCH
 
@@ -97,11 +107,17 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             prev = closed[i - 1]
             keep = []
             for z in active:
+                if z.gap_dir:
+                    filled = gap_filled(z, b, params.touch_buffer_pct)
+                    z.gap_dir = 0
+                    if filled:
+                        continue
                 v = judge(z, i, b, prev, params.touch_buffer_pct)
                 if v == KILL:
                     continue
-                if v == FVG:
+                if v in FVG:
                     z.hidden += 1
+                    z.gap_dir = 1 if v == FVG_BEAR else -1
                     z.fvg_times.append(b.t)
                 elif v == TOUCH:
                     z.touched = True
@@ -117,7 +133,9 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
     live = bars[-1] if last_is_live and len(bars) >= 2 else None
     for z in active:
         v = judge(z, len(closed), live, closed[-1], params.touch_buffer_pct) if live else NONE
-        forming = v == FVG
+        if live and z.gap_dir and gap_filled(z, live, params.touch_buffer_pct):
+            v = KILL  # the open candle is filling the gap left by the last FVG candle
+        forming = v in FVG
         hidden = z.hidden + (1 if forming else 0)
         if hidden >= params.min_hidden:
             found.append(Found(zone=z, hidden=hidden, forming=forming,
