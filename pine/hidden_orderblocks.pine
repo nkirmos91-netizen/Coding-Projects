@@ -13,10 +13,11 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //   * The candle straight after Z may cross the body only by closing beyond its
 //     far side (the move away). A wick back into the body mitigates it.
 //   * From then on, for every candle M that enters the body:
-//       - same-colour FVG covers the whole body             -> hidden += 1
+//       - an FVG covers the whole body                      -> hidden += 1
 //           bearish: low[M-1] >= bodyTop and high[M+1] <= bodyBot
 //           bullish: high[M-1] <= bodyBot and low[M+1] >= bodyTop
-//       - opposite-colour FVG covers the whole body         -> ignored
+//         The FIRST covering FVG must be the zone's colour; once confirmed,
+//         later FVGs of either colour add a level.
 //       - otherwise (any wick or body into it)              -> mitigated
 // -----------------------------------------------------------------------------
 
@@ -98,16 +99,17 @@ if barstate.isconfirmed and bar_index >= 2
         else if entered
             bool bearCover = pLow >= z.top and high <= z.bot
             bool bullCover = pHigh <= z.bot and low >= z.top
-            if (bearCover and z.bear) or (bullCover and not z.bear)
+            bool sameColour = (bearCover and z.bear) or (bullCover and not z.bear)
+            // The first FVG must match the zone's colour; after that any covering FVG counts.
+            if sameColour or ((bearCover or bullCover) and z.hidden > 0)
                 z.hidden := z.hidden + 1
                 z.fvgTimes.push(mTime)
                 z.fvgPrices.push(bearCover ? mHigh : mLow)
                 z.fvgBear.push(bearCover)
                 if z.hidden >= minHidden
                     levelUp := true
-            else if not (bearCover or bullCover)
+            else
                 killed := true
-            // An FVG of the opposite colour neither counts nor mitigates.
         if killed
             if z.hidden >= minHidden
                 mitigatedNow := true

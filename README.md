@@ -11,7 +11,8 @@ For a candidate candle **Z**, the body is the range between its open and close:
 3. After that, every candle **M** that trades into the body must be the middle candle of an FVG that covers the **whole** body:
    - Bearish FVG: `low[M-1] >= bodyTop` and `high[M+1] <= bodyBottom`
    - Bullish FVG: `high[M-1] <= bodyBottom` and `low[M+1] >= bodyTop`
-   - An FVG the same colour as Z gives **+1 hidden**. An FVG of the opposite colour is ignored.
+   - The **first** covering FVG must be the same colour as Z; that makes it 1x hidden. An opposite-colour first FVG invalidates the zone.
+   - After that, every further covering FVG of either colour adds **+1 hidden**.
 4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
 
