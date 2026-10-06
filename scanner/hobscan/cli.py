@@ -94,6 +94,40 @@ def run_demo(out: str) -> None:
     print(f"Demo page: {path.resolve()}")
 
 
+def run_candles(symbol: str, tf: str, count: int) -> None:
+    """Print the scanner's last candles for one symbol, to compare with TradingView."""
+    now_ms = int(time.time() * 1000)
+    sym = symbol.upper()
+    if sym.endswith("USDT"):
+        from .providers.crypto import Bybit
+        from .providers.base import daily_is_live
+        daily = Bybit().daily(sym)
+        live = bool(daily) and daily_is_live(daily[-1], now_ms)
+    else:
+        from .providers.stocks import Stocks
+        src = Stocks({})
+        inst = Instrument(symbol=sym, market="Stocks", name=sym, tv_symbol=sym, exchange=_guess_exchange(sym))
+        src.prefetch([inst])
+        daily, live = src.daily(inst, now_ms)
+    if not daily:
+        print(f"No data for {sym}")
+        return
+    anchors = ["first", "epoch"] if tf.upper().endswith("D") and tf.upper() != "1D" else ["first"]
+    for anchor in anchors:
+        bars, last_live = resample(daily, tf, now_ms, live, anchor)
+        print(f"\n{sym} {tf}" + (f"  (anchor = {anchor})" if len(anchors) > 1 else ""))
+        print(f"{'starts':<12}{'open':>12}{'high':>12}{'low':>12}{'close':>12}")
+        for b in bars[-count:]:
+            d = datetime.fromtimestamp(b.t / 1000, timezone.utc).strftime("%Y-%m-%d")
+            print(f"{d:<12}{b.o:>12.5g}{b.h:>12.5g}{b.l:>12.5g}{b.c:>12.5g}")
+        if last_live:
+            print("(last candle still open)")
+
+
+def _guess_exchange(sym: str) -> str:
+    return "ASX" if sym.endswith(".AX") else "XETR" if sym.endswith(".DE") else "NASDAQ"
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="hobscan", description="Hidden orderblock scanner")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -103,8 +137,14 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--limit", type=int, help="only scan the first N symbols per market (for testing)")
     d = sub.add_parser("demo", help="write the page using example data")
     d.add_argument("--out", default="output/demo.html")
+    c = sub.add_parser("candles", help="print the last candles for one symbol (compare with TradingView)")
+    c.add_argument("symbol", help="e.g. MSFT, BHP.AX, SAP.DE, SOLUSDT (Bybit perp)")
+    c.add_argument("tf", help="e.g. 5D, 3W")
+    c.add_argument("--count", type=int, default=6)
     a = p.parse_args(argv)
     if a.cmd == "scan":
         run_scan(load(a.config), set(a.markets.lower().split(",")), a.limit)
+    elif a.cmd == "candles":
+        run_candles(a.symbol, a.tf, a.count)
     else:
         run_demo(a.out)

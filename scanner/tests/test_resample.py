@@ -46,3 +46,11 @@ def test_n_day_counts_from_first_candle():
     d = daily("2026-01-01", 11)
     b, live = resample(d, "5D", now_ms=ms("2026-02-01"))
     assert len(b) == 3 and b[0].c == d[4].c and live  # last group has 1 of 5 days
+
+
+def test_3w_matches_tradingview_boundary():
+    # TradingView: MSFT / EURUSD / NZDUSD 3W candles start on Monday 2026-10-05.
+    d = daily("2026-09-14", 30)
+    w, _ = resample(d, "3W", now_ms=ms("2026-10-14"))
+    starts = [datetime.fromtimestamp(b.t / 1000, timezone.utc).strftime("%Y-%m-%d") for b in w]
+    assert starts == ["2026-09-14", "2026-10-05"]

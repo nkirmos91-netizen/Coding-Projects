@@ -1,11 +1,13 @@
 """Build higher-timeframe candles (2D, 5D, 1W, 3W, 1M, 12M ...) from daily candles.
 
 Multi-day and multi-week candles must start on the same dates TradingView uses, or
-bodies and FVGs come out different. Months are calendar-aligned (3M starts Jan,
-Apr, Jul, Oct; 12M starts in January). For nD and nW the anchor is configurable
-until it has been checked against TradingView charts:
-  * "first": count from the first candle in the symbol's history
-  * "epoch": count from 1970-01-01 (weeks: from the Monday of that week)
+bodies and FVGs come out different.
+  * Months are calendar-aligned (3M starts Jan, Apr, Jul, Oct; 12M starts in January).
+  * Weeks start on Monday; nW candles count from Monday 1970-01-05. Checked against
+    TradingView 3W charts (MSFT, EURUSD, NZDUSD all start a 3W candle on 2026-10-05).
+  * nD candles: not yet checked. The anchor is configurable:
+      "first": count from the first candle in the symbol's history
+      "epoch": count calendar days from 1970-01-01
 """
 
 from __future__ import annotations
@@ -48,8 +50,12 @@ def _month_start_ms(index: int) -> int:
 
 
 def _week_index(t: int) -> int:
-    # 1970-01-01 was a Thursday; +3 days makes weeks start on Monday.
+    # 1970-01-01 was a Thursday; +3 days makes weeks start on Monday. Week 1 starts
+    # Monday 1970-01-05, which is where TradingView counts nW candles from.
     return (t // DAY_MS + 3) // 7
+
+
+TV_WEEK_BASE = 1
 
 
 def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
@@ -69,8 +75,7 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
     if unit == "D":
         keys = [i // n if anchor == "first" else (b.t // DAY_MS) // n for i, b in enumerate(daily)]
     elif unit == "W":
-        base = _week_index(daily[0].t) if anchor == "first" else 0
-        keys = [(_week_index(b.t) - base) // n for b in daily]
+        keys = [(_week_index(b.t) - TV_WEEK_BASE) // n for b in daily]
     else:
         keys = [_month_index(b.t) // n for b in daily]
 
@@ -94,8 +99,7 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
         else:
             unfinished = now_ms < (last_key + 1) * n * DAY_MS
     elif unit == "W":
-        base = _week_index(daily[0].t) if anchor == "first" else 0
-        end_week = base + (last_key + 1) * n
+        end_week = TV_WEEK_BASE + (last_key + 1) * n
         unfinished = now_ms < (end_week * 7 - 3) * DAY_MS
     else:
         unfinished = now_ms < _month_start_ms((last_key + 1) * n)

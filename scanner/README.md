@@ -42,10 +42,20 @@ Then open `output/hob_scan.html` in a browser.
 Bybit and Binance block some countries (including the US), so run it from a
 location they serve.
 
+## Compare candles with TradingView
+
+```
+python -m hobscan candles MSFT 5D
+python -m hobscan candles SOLUSDT 7D
+```
+
+Prints the scanner's last few candles (start date, open, high, low, close). For 2D–7D
+it prints both anchor options. Hover the same candles on TradingView to see which matches.
+
 ## Still to do
 
-- Check the multi-day and multi-week candle start dates (`anchor` in the config)
-  against TradingView charts.
+- Check the multi-day (2D–7D) candle start dates (`anchor` in the config) against
+  TradingView charts. Multi-week candles are already aligned.
 - FXCM connection for FX, commodities and indices.
 
 ## Tests
