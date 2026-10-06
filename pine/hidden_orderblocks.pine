@@ -32,11 +32,6 @@ float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxv
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
      tooltip = "Performance cap. When exceeded, the oldest candidate that is not hidden yet is dropped.")
 
-float maxDistPct = input.float(0, "Max distance from price % (0 = off)", minval = 0, step = 5, group = G_DET,
-     tooltip = "Hide zones further than this from current price. Off by default: crypto zones can be far from price and still valid.")
-float maxAgeYrs  = input.float(20, "Max zone age (years, 0 = off)", minval = 0, step = 1, group = G_DET,
-     tooltip = "Hide zones formed longer ago than this. Stops decades-old FX history (e.g. NZDUSD above 1.00 in the 1980s) cluttering the list.")
-
 const string G_VIS = "Display"
 bool  showBear  = input.bool(true, "Show bearish", group = G_VIS)
 bool  showBull  = input.bool(true, "Show bullish", group = G_VIS)
@@ -193,8 +188,7 @@ if barstate.islast
         int   nHidden = z.hidden + (forming ? 1 : 0)
         bool  isBear  = z.bear
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        bool  inRange = (maxDistPct == 0 or distPct <= maxDistPct) and (maxAgeYrs == 0 or (time - z.openTime) <= maxAgeYrs * 365.25 * 86400000)
-        if nHidden >= minHidden and inRange
+        if nHidden >= minHidden
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
                 bool   tested = liveIn and not forming

@@ -29,7 +29,7 @@ Detection only uses candles from the chart's own timeframe.
    - Fill is darker the more hidden a zone is.
    - "testing" means the current candle is trading into the zone.
 3. The table lists the visible zones ranked by hidden count, then by distance from price.
-   - Zones older than **Max zone age** (default 20 years) are hidden. **Max distance from price** is off by default.
+   - Zones are shown regardless of age or distance from price.
 4. Three alerts are available:
    - hidden OB formed or gained a level
    - price tapping a hidden OB
