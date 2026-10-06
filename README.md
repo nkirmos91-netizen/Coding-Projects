@@ -16,6 +16,7 @@ For a candidate candle **Z**, the body is the range between its open and close:
    - The **first** covering FVG must be the same colour as Z; that makes it 1x hidden. An opposite-colour first FVG invalidates the zone.
    - After that, every further covering FVG of either colour adds **+1 hidden**.
 4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.
+   - **Touch buffer** (default 5% of the body height): a wick that only reaches into the outer 5% from either edge is allowed. The zone stays valid but is marked **touched** (yellow border, "touched" in its label).
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
 
 Detection only uses candles from the chart's own timeframe.
@@ -38,6 +39,7 @@ Detection only uses candles from the chart's own timeframe.
 | Chart | Zone | Expected |
 |---|---|---|
 | CADJPY 4D (OANDA) | ~113.64 – 113.96 (Jul 2026) | 3x bearish |
+| LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched |
 | EURUSD 5D (OANDA) | ~1.1525 – 1.1555 (Aug 2026) | 1x bearish |
 | NZDUSD 3W (FXCM) | ~0.6640 – 0.6705 (early 2022) | 1x bearish |
 
