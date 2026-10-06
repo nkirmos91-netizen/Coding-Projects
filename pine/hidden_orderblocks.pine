@@ -70,12 +70,18 @@ type Zone
     int          endTime
 
 tfLabel() =>
+    // Built from the multiplier so it reads "1M", "3W", "4H" (Pine v6's timeframe.period
+    // already includes the multiplier, so prefixing it would give "11M").
+    int    m   = timeframe.multiplier
     string res = timeframe.period
     if timeframe.isminutes
-        int m = timeframe.multiplier
         res := m % 60 == 0 ? str.tostring(m / 60, "#") + "H" : str.tostring(m) + "m"
-    else if timeframe.multiplier == 1 and (timeframe.isdaily or timeframe.isweekly or timeframe.ismonthly)
-        res := "1" + timeframe.period
+    else if timeframe.isdaily
+        res := str.tostring(m) + "D"
+    else if timeframe.isweekly
+        res := str.tostring(m) + "W"
+    else if timeframe.ismonthly
+        res := str.tostring(m) + "M"
     res
 
 zoneColor(int hidden, color base) =>
