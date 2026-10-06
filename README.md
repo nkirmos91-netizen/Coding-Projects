@@ -40,6 +40,7 @@ Detection only uses candles from the chart's own timeframe.
 |---|---|---|
 | CADJPY 4D (OANDA) | ~113.64 – 113.96 (Jul 2026) | 3x bearish |
 | LINKUSDT.P 1W (Binance) | ~8.38 – 8.825 (Jul 2026) | 1x bullish, touched |
+| SOLUSDT.P 7D (Bybit) | ~89.2 – 91.0 (May 2026) | 1x bullish (body ~17% of range) |
 | EURUSD 5D (OANDA) | ~1.1525 – 1.1555 (Aug 2026) | 1x bearish |
 | NZDUSD 3W (FXCM) | ~0.6640 – 0.6705 (early 2022) | 1x bearish |
 

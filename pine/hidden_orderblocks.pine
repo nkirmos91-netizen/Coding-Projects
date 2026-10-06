@@ -25,7 +25,7 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 
 const string G_DET = "Detection"
 int   minHidden  = input.int(1, "Min hidden count to show", minval = 1, group = G_DET)
-float minBodyPct = input.float(20.0, "Min body size (% of candle range)", minval = 0, maxval = 100, step = 5, group = G_DET,
+float minBodyPct = input.float(10.0, "Min body size (% of candle range)", minval = 0, maxval = 100, step = 5, group = G_DET,
      tooltip = "Filters tiny-body / big-wick candles. A body around 50% of the range (body and wicks even) is ideal.")
 float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxval = 49, step = 1, group = G_DET,
      tooltip = "A wick may reach this far into the body (from either edge) without mitigating it. The zone is then marked as touched.")
