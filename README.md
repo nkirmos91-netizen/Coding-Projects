@@ -53,5 +53,4 @@ Detection only uses candles from the chart's own timeframe.
 - [x] Pine indicator to confirm the detection matches what's seen on charts
 - [x] Python scanner (`scanner/`): crypto and stocks on 1D–12M, ranked page
 - [ ] Scanner: FXCM connection for FX, commodities and indices
-- [x] Scanner: multi-day/week candle start dates matched to TradingView (crypto, US stocks)
-- [ ] Scanner: ASX and XETRA 2D–5D candle start dates
+- [x] Scanner: multi-day/week candle start dates matched to TradingView (count restarts each calendar year)

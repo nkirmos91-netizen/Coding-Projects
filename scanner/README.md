@@ -12,7 +12,9 @@ TradingView indicator in `../pine/hidden_orderblocks.pine` (see the main README)
 | Stocks: NYSE, NASDAQ, ASX, XETR | Yahoo Finance | market cap ≥ $150m and 10-day average daily traded value ≥ $15m (USD); zones within 30% of price |
 | FX, commodities, indices | FXCM | **not connected yet** |
 
-All timeframes (1D, 2D, 3D, 4D, 5D, 1W, 2W, 3W, 1M, 2M, 3M, 6M, 12M) are built from daily candles.
+All timeframes (1D, 2D, 3D, 4D, 5D, 1W, 2W, 3W, 1M, 2M, 3M, 6M, 12M) are built from daily candles,
+grouped the way TradingView does: the count restarts every calendar year (multi-day from the
+first daily candle of the year, multi-week from the first Monday of the year).
 
 ## Ranking
 
@@ -75,8 +77,6 @@ Hover the same candles on TradingView to check they match.
 
 ## Still to do
 
-- Match ASX and XETRA 2D–5D candles to TradingView (they are skipped until then).
-  Crypto and US stocks are matched on every timeframe.
 - FXCM connection for FX, commodities and indices.
 
 ## Tests

@@ -13,20 +13,14 @@ from .config import Config, load
 from .engine import Bar, Params, detect
 from .providers.base import Instrument
 from .rank import score
-from .resample import parse_tf, resample, tv_interval
+from .resample import resample, tv_interval
 
 
 def zones_for(inst: Instrument, daily: list[Bar], daily_live: bool, cfg: Config, now_ms: int) -> list[dict]:
     rows = []
     max_dist = cfg.max_distance_pct(inst.market)
-    anchor = cfg.anchor_for(inst.market)
-    ref = cfg.session_ref(inst.market, inst.exchange)
-    ref_ms = int(datetime.fromisoformat(ref).replace(tzinfo=timezone.utc).timestamp() * 1000) if ref else None
     for tf in cfg.timeframes:
-        n, unit = parse_tf(tf)
-        if unit == "D" and n > 1 and anchor == "sessions" and ref_ms is None:
-            continue  # this exchange's multi-day candles haven't been matched to TradingView yet
-        bars, live = resample(daily, tf, now_ms, daily_live, anchor, ref_ms)
+        bars, live = resample(daily, tf, now_ms, daily_live)
         if len(bars) < 3:
             continue
         close = bars[-1].c
@@ -107,31 +101,11 @@ def run_demo(out: str) -> None:
 def run_candles(symbol: str, tf: str, count: int) -> None:
     """Print the scanner's last candles for one symbol, to compare with TradingView."""
     now_ms = int(time.time() * 1000)
-    sym = symbol.upper()
-    if sym.endswith("USDT"):
-        from .providers.crypto import Bybit
-        from .providers.base import daily_is_live
-        daily = Bybit().daily(sym)
-        live = bool(daily) and daily_is_live(daily[-1], now_ms)
-    else:
-        from .providers.stocks import Stocks
-        src = Stocks({})
-        inst = Instrument(symbol=sym, market="Stocks", name=sym, tv_symbol=sym, exchange=_guess_exchange(sym))
-        src.prefetch([inst])
-        daily, live = src.daily(inst, now_ms)
+    sym, _, _, daily, live = _load_daily(symbol, now_ms)
     if not daily:
         print(f"No data for {sym}")
         return
-    market, exchange = ("Crypto", "Bybit") if sym.endswith("USDT") else ("Stocks", _guess_exchange(sym))
-    cfg = Config(timeframes=[tf])
-    anchor = cfg.anchor_for(market)
-    ref = cfg.session_ref(market, exchange)
-    ref_ms = int(datetime.fromisoformat(ref).replace(tzinfo=timezone.utc).timestamp() * 1000) if ref else None
-    n, unit = parse_tf(tf)
-    if unit == "D" and n > 1 and anchor == "sessions" and ref_ms is None:
-        print(f"{exchange} 2D-5D candles haven't been matched to TradingView yet.")
-        return
-    bars, last_live = resample(daily, tf, now_ms, live, anchor, ref_ms)
+    bars, last_live = resample(daily, tf, now_ms, live)
     print(f"\n{sym} {tf}")
     print(f"{'starts':<12}{'open':>12}{'high':>12}{'low':>12}{'close':>12}")
     for b in bars[-count:]:
@@ -166,10 +140,7 @@ def run_explain(symbol: str, tf: str, bottom: float, config: str) -> None:
     if not daily:
         print(f"No data for {sym}")
         return
-    anchor = cfg.anchor_for(market)
-    ref = cfg.session_ref(market, exchange)
-    ref_ms = int(datetime.fromisoformat(ref).replace(tzinfo=timezone.utc).timestamp() * 1000) if ref else None
-    bars, last_live = resample(daily, tf, now_ms, live, anchor, ref_ms)
+    bars, last_live = resample(daily, tf, now_ms, live)
     log: list[str] = []
     detect(bars, cfg.params, last_live, trace_bot=bottom, log=log)
     print(f"\n{sym} {tf}: zone with body bottom {bottom:g}  (current price {bars[-1].c:g})\n")

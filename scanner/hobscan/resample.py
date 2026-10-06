@@ -1,18 +1,16 @@
 """Build higher-timeframe candles (2D, 5D, 1W, 3W, 1M, 12M ...) from daily candles.
 
-Multi-day and multi-week candles must start on the same dates TradingView uses, or
-bodies and FVGs come out different.
-  * Months are calendar-aligned (3M starts Jan, Apr, Jul, Oct; 12M starts in January).
-  * Weeks start on Monday; nW candles count from Monday 1970-01-05. Checked against
-    TradingView 3W charts (MSFT, EURUSD, NZDUSD all start a 3W candle on 2026-10-05).
-  * nD candles, set per market:
-      "epoch": count calendar days from 1970-01-01. Matches TradingView for crypto
-               (BYBIT:SOLUSDT.P 7D candle starts 2026-10-01).
-      "sessions": count the symbol's own trading days (holidays skipped) from a
-               reference day on which every 2D-5D candle starts. US stocks on
-               TradingView: 2026-09-22 (checked on MSFT 2D-5D, ARM 3D/5D and the
-               MSFT 5D candle starting Mon 31 Aug over Labor Day).
-      "first": count trading days from the first candle in the symbol's history.
+Multi-period candles must start on the same dates TradingView uses, or bodies and FVGs
+come out different. TradingView restarts the count every calendar year:
+  * nD: groups of n daily candles, counted from the symbol's first daily candle of the
+    year (calendar days for crypto, trading days for stocks; holidays have no candle).
+  * nW: groups of n weeks (Monday to Sunday), counted from the first week that starts in
+    the year (the first Monday on or after 1 January).
+  * nM: calendar-aligned (3M starts Jan, Apr, Jul, Oct; 12M starts in January).
+The last group of a year is cut short at the year end.
+Checked against TradingView: NFLX 2W (21 Jun, 6 Jul, 19 Jul 2021 and 28 Sep 2026),
+MSFT/EURUSD/NZDUSD 3W (5 Oct 2026), SOL 7D (1 Oct 2026), MSFT 2D-5D (Oct 2026, and the
+5D candle starting Mon 31 Aug 2026 over Labor Day).
 """
 
 from __future__ import annotations
@@ -44,28 +42,24 @@ def tv_interval(tf: str) -> str:
     return unit if n == 1 else f"{n}{unit}"
 
 
-def _month_index(t: int) -> int:
-    d = datetime.fromtimestamp(t / 1000, tz=timezone.utc)
-    return d.year * 12 + d.month - 1
+def _monday(t: int) -> int:
+    """Day number (days since 1970-01-01) of the Monday of t's week."""
+    day = t // DAY_MS
+    return day - (day + 3) % 7  # 1970-01-01 was a Thursday
 
 
-def _month_start_ms(index: int) -> int:
-    y, m = divmod(index, 12)
-    return int(datetime(y, m + 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+def _first_monday(year: int) -> int:
+    """Day number of the first Monday on or after 1 January."""
+    jan1 = (datetime(year, 1, 1, tzinfo=timezone.utc) - datetime(1970, 1, 1, tzinfo=timezone.utc)).days
+    return jan1 + (-(jan1 + 3)) % 7
 
 
-def _week_index(t: int) -> int:
-    # 1970-01-01 was a Thursday; +3 days makes weeks start on Monday. Week 1 starts
-    # Monday 1970-01-05, which is where TradingView counts nW candles from.
-    return (t // DAY_MS + 3) // 7
+def _year(t: int) -> int:
+    return datetime.fromtimestamp(t / 1000, timezone.utc).year
 
 
-TV_WEEK_BASE = 1
-
-
-def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
-             anchor: str = "first", session_ref_ms: int | None = None) -> tuple[list[Bar], bool]:
-    """Group daily candles into `tf` candles.
+def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False, **_ignored) -> tuple[list[Bar], bool]:
+    """Group daily candles into `tf` candles, the way TradingView does.
 
     Returns (candles, last_is_live). The last candle is live if its period has not
     finished yet or it contains a still-open daily candle.
@@ -73,21 +67,26 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
     n, unit = parse_tf(tf)
     if not daily:
         return [], False
-    if unit == "D" and n == 1:
+    if n == 1 and unit == "D":
         return list(daily), daily_live
 
-    keys: list[int] = []
-    if unit == "D" and anchor == "sessions":
-        if session_ref_ms is None:
-            raise ValueError("anchor 'sessions' needs a reference day")
-        ref = next((i for i, b in enumerate(daily) if b.t >= session_ref_ms), len(daily))
-        keys = [(i - ref) // n for i in range(len(daily))]
-    elif unit == "D":
-        keys = [i // n if anchor == "first" else (b.t // DAY_MS) // n for i, b in enumerate(daily)]
+    keys: list[tuple[int, int]] = []
+    if unit == "D":
+        year, k = None, 0
+        for b in daily:
+            y = _year(b.t)
+            k = k + 1 if y == year else 0
+            year = y
+            keys.append((y, k // n))
     elif unit == "W":
-        keys = [(_week_index(b.t) - TV_WEEK_BASE) // n for b in daily]
+        for b in daily:
+            mon = _monday(b.t)
+            y = _year(mon * DAY_MS)  # a week belongs to the year its Monday is in
+            keys.append((y, (mon - _first_monday(y)) // 7 // n))
     else:
-        keys = [_month_index(b.t) // n for b in daily]
+        for b in daily:
+            d = datetime.fromtimestamp(b.t / 1000, timezone.utc)
+            keys.append((d.year, (d.month - 1) // n))
 
     out: list[Bar] = []
     counts: list[int] = []
@@ -102,15 +101,15 @@ def resample(daily: list[Bar], tf: str, now_ms: int, daily_live: bool = False,
             out[-1] = Bar(t=last.t, o=last.o, h=max(last.h, b.h), l=min(last.l, b.l), c=b.c)
             counts[-1] += 1
 
-    last_key = keys[-1]
+    y, k = keys[-1]
+    year_end = int(datetime(y + 1, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
     if unit == "D":
-        if anchor in ("first", "sessions"):
-            unfinished = counts[-1] < n
-        else:
-            unfinished = now_ms < (last_key + 1) * n * DAY_MS
+        unfinished = counts[-1] < n and now_ms < year_end
     elif unit == "W":
-        end_week = TV_WEEK_BASE + (last_key + 1) * n
-        unfinished = now_ms < (end_week * 7 - 3) * DAY_MS
+        group_end = (_first_monday(y) + (k + 1) * n * 7) * DAY_MS
+        unfinished = now_ms < min(group_end, (_first_monday(y + 1)) * DAY_MS)
     else:
-        unfinished = now_ms < _month_start_ms((last_key + 1) * n)
+        m = (k + 1) * n
+        end = datetime(y + 1, 1, 1, tzinfo=timezone.utc) if m >= 12 else datetime(y, m + 1, 1, tzinfo=timezone.utc)
+        unfinished = now_ms < int(end.timestamp() * 1000)
     return out, daily_live or unfinished
