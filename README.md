@@ -8,9 +8,11 @@ For a candidate candle **Z**, the body is the range between its open and close:
 
 1. Z's colour sets the zone: a bearish candle makes a **bearish** zone, a bullish candle a **bullish** one.
 2. The candle straight after Z may cross the body only by closing beyond its far side (the move away). If its wick goes back into the body, the zone is mitigated.
-3. After that, every candle **M** that trades into the body must be the middle candle of an FVG that covers the **whole** body:
-   - Bearish FVG: `low[M-1] >= bodyTop` and `high[M+1] <= bodyBottom`
-   - Bullish FVG: `high[M-1] <= bodyBottom` and `low[M+1] >= bodyTop`
+3. After that, every candle **M** that trades into the body must be an FVG candle that crosses the **whole** body. It is confirmed when M closes:
+   - Bearish: `low[M-1] >= bodyTop` and `low[M] <= bodyBottom`
+   - Bullish: `high[M-1] <= bodyBottom` and `high[M] >= bodyTop`
+   - The candle after M is judged like any other candle: if it trades back into the body, the zone is mitigated.
+   - While M is still open, the zone shows as **forming** (dashed border).
    - The **first** covering FVG must be the same colour as Z; that makes it 1x hidden. An opposite-colour first FVG invalidates the zone.
    - After that, every further covering FVG of either colour adds **+1 hidden**.
 4. Any other wick or body that enters the zone mitigates it (takes the liquidity), and it is removed.

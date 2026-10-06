@@ -12,10 +12,11 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //   * Z's colour sets the zone: bearish candle = bearish zone, bullish = bullish.
 //   * The candle straight after Z may cross the body only by closing beyond its
 //     far side (the move away). A wick back into the body mitigates it.
-//   * From then on, for every candle M that enters the body:
-//       - an FVG covers the whole body                      -> hidden += 1
-//           bearish: low[M-1] >= bodyTop and high[M+1] <= bodyBot
-//           bullish: high[M-1] <= bodyBot and low[M+1] >= bodyTop
+//   * From then on, for every candle M that enters the body (judged when M closes):
+//       - M is an FVG candle crossing the whole body       -> hidden += 1
+//           bearish: low[M-1] >= bodyTop and low[M] <= bodyBot
+//           bullish: high[M-1] <= bodyBot and high[M] >= bodyTop
+//         (the candle after M must stay out of the body, or it mitigates the zone)
 //         The FIRST covering FVG must be the zone's colour; once confirmed,
 //         later FVGs of either colour add a level.
 //       - otherwise (any wick or body into it)              -> mitigated
@@ -81,30 +82,28 @@ bool levelUp   = false
 bool mitigatedNow = false
 
 // -- Update on closed candles only. Candle M = previous bar, its neighbours are bar[2] and the bar that just closed.
-if barstate.isconfirmed and bar_index >= 2
-    float pHigh = high[2]
-    float pLow  = low[2]
-    float mHigh = high[1]
-    float mLow  = low[1]
-    int   mTime = time[1]
-    int   mIdx  = bar_index - 1
+// Each candle is judged when it closes. An FVG counts as soon as the candle that
+// crosses the body has closed: the candle before it never touched the body and it
+// traded straight through. If a later candle trades back into the body, that later
+// candle is judged on its own and mitigates the zone.
+if barstate.isconfirmed and bar_index >= 1
     int i = active.size() - 1
     while i >= 0
         Zone z = active.get(i)
-        bool entered = mIdx > z.barIdx and mHigh > z.bot and mLow < z.top
+        bool entered = bar_index > z.barIdx and high > z.bot and low < z.top
         bool killed  = false
-        if entered and mIdx == z.barIdx + 1
+        if entered and bar_index == z.barIdx + 1
             // The move away: it may only cross the body by closing beyond the far side.
-            killed := z.bear ? close[1] <= z.top : close[1] >= z.bot
+            killed := z.bear ? close <= z.top : close >= z.bot
         else if entered
-            bool bearCover = pLow >= z.top and high <= z.bot
-            bool bullCover = pHigh <= z.bot and low >= z.top
+            bool bearCover = low[1] >= z.top and low <= z.bot
+            bool bullCover = high[1] <= z.bot and high >= z.top
             bool sameColour = (bearCover and z.bear) or (bullCover and not z.bear)
             // The first FVG must match the zone's colour; after that any covering FVG counts.
             if sameColour or ((bearCover or bullCover) and z.hidden > 0)
                 z.hidden := z.hidden + 1
-                z.fvgTimes.push(mTime)
-                z.fvgPrices.push(bearCover ? mHigh : mLow)
+                z.fvgTimes.push(time)
+                z.fvgPrices.push(bearCover ? high : low)
                 z.fvgBear.push(bearCover)
                 if z.hidden >= minHidden
                     levelUp := true
@@ -113,7 +112,7 @@ if barstate.isconfirmed and bar_index >= 2
         if killed
             if z.hidden >= minHidden
                 mitigatedNow := true
-                z.endTime := mTime
+                z.endTime := time
                 mitigated.push(z)
                 if mitigated.size() > maxMit
                     mitigated.shift()
@@ -180,32 +179,31 @@ if barstate.islast
     array<bool>  shownF  = array.new<bool>()
     array<float> scores  = array.new<float>()
     for z in active
-        // Provisional FVG: the last closed candle entered the body and the still-open
-        // candle currently completes a covering gap. Confirmed when that candle closes.
-        bool  prevIn   = not barstate.isconfirmed and bar_index - 1 > z.barIdx + 1 and high[1] > z.bot and low[1] < z.top
-        bool  pBearCov = low[2] >= z.top and high <= z.bot
-        bool  pBullCov = high[2] <= z.bot and low >= z.top
-        bool  pSame    = (pBearCov and z.bear) or (pBullCov and not z.bear)
-        bool  forming  = prevIn and (pSame or ((pBearCov or pBullCov) and z.hidden > 0))
-        int   nHidden  = z.hidden + (forming ? 1 : 0)
-        bool  isBear   = z.bear
-        float distPct  = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
-        bool  inRange  = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
+        // Forming: the still-open candle is crossing the body as an FVG candle.
+        // It is confirmed when that candle closes.
+        bool  liveIn  = not barstate.isconfirmed and bar_index > z.barIdx + 1 and high > z.bot and low < z.top
+        bool  fBear   = low[1] >= z.top and low <= z.bot
+        bool  fBull   = high[1] <= z.bot and high >= z.top
+        bool  fSame   = (fBear and z.bear) or (fBull and not z.bear)
+        bool  forming = liveIn and (fSame or ((fBear or fBull) and z.hidden > 0))
+        int   nHidden = z.hidden + (forming ? 1 : 0)
+        bool  isBear  = z.bear
+        float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
+        bool  inRange = (maxDistPct == 0 or distPct <= maxDistPct) and (lookback == 0 or bar_index - z.barIdx <= lookback)
         if nHidden >= minHidden and inRange
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
-                bool   liveIn = bar_index > z.barIdx + 1 and high > z.bot and low < z.top
-                bool   tested = liveIn or (prevIn and not forming)
+                bool   tested = liveIn and not forming
                 color  c      = zoneColor(nHidden, base)
-                string note   = tested ? "  testing" : forming ? "  forming" : ""
+                string note   = forming ? "  forming" : tested ? "  testing" : ""
                 boxes.push(box.new(z.openTime, z.top, time, z.bot, xloc = xloc.bar_time, extend = extend.right,
-                     bgcolor = c, border_color = c, border_style = tested or forming ? line.style_dashed : line.style_solid,
+                     bgcolor = c, border_color = c, border_style = forming or tested ? line.style_dashed : line.style_solid,
                      text = str.format("{0}x {1}{2}", nHidden, tf, note), text_color = color.white,
                      text_size = size.small, text_halign = text.align_right))
                 if showMarks and forming
-                    marks.push(label.new(time[1], pBearCov ? high[1] : low[1], str.tostring(nHidden) + "?", xloc = xloc.bar_time,
-                         style = pBearCov ? label.style_label_down : label.style_label_up, color = color.new(base, 50),
-                         textcolor = color.white, size = size.tiny, tooltip = "Forming FVG: confirmed when the current candle closes without trading into the gap"))
+                    marks.push(label.new(time, fBear ? high : low, str.tostring(nHidden) + "?", xloc = xloc.bar_time,
+                         style = fBear ? label.style_label_down : label.style_label_up, color = color.new(base, 50),
+                         textcolor = color.white, size = size.tiny, tooltip = "Forming FVG: confirmed when this candle closes"))
                 if showMarks and z.fvgTimes.size() > 0
                     for k = 0 to z.fvgTimes.size() - 1
                         bool fb = z.fvgBear.get(k)
