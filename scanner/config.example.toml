@@ -1,7 +1,7 @@
 # Hidden Orderblock Scanner settings. Copy to config.toml and edit.
 
 # Timeframes to scan. All are built from daily candles.
-timeframes = ["1D", "2D", "3D", "4D", "5D", "7D", "1W", "2W", "3W", "1M", "2M", "3M", "6M", "12M"]
+timeframes = ["1D", "2D", "3D", "4D", "5D", "1W", "2W", "3W", "1M", "2M", "3M", "6M", "12M"]
 
 output = "output/hob_scan.html"
 
