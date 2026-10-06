@@ -35,7 +35,7 @@ class Bar:
 @dataclass
 class Params:
     min_body_pct: float = 10.0  # body as % of candle range
-    min_body_atr: float = 0.15  # body as a multiple of the 14-candle ATR (drops "junk" zones)
+    min_body_atr: float = 0.15  # 1x zones need a body of at least this x the 14-candle ATR ("junk" filter)
     touch_buffer_pct: float = 5.0  # % of body height allowed at each edge
     min_hidden: int = 1
     fresh_only: bool = True  # drop zones that were touched or are being traded into now
@@ -51,6 +51,7 @@ class Zone:
     body_pct: float
     hidden: int = 0
     touched: bool = False
+    small: bool = False  # body < min_body_atr x ATR: only shown once hidden 2x or more
     gap_dir: int = 0  # +1 / -1: last candle was a bearish / bullish FVG candle; next must leave the gap open
     fvg_times: list[int] = field(default_factory=list)
 
@@ -138,10 +139,10 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
             active = keep
         rng = b.h - b.l
         body = abs(b.c - b.o)
-        if (rng > 0 and body > 0 and body / rng * 100 >= params.min_body_pct
-                and (atr is None or body >= params.min_body_atr * atr)):
+        if rng > 0 and body > 0 and body / rng * 100 >= params.min_body_pct:
             active.append(Zone(idx=i, t=b.t, top=max(b.o, b.c), bot=min(b.o, b.c),
-                               bear=b.c < b.o, body_pct=body / rng * 100))
+                               bear=b.c < b.o, body_pct=body / rng * 100,
+                               small=atr is not None and body < params.min_body_atr * atr))
 
     found = []
     live = bars[-1] if last_is_live and len(bars) >= 2 else None
@@ -154,6 +155,8 @@ def detect(bars: list[Bar], params: Params = Params(), last_is_live: bool = Fals
         touched = z.touched or v == TOUCH
         if params.fresh_only and (touched or v == KILL):
             continue
+        if z.small and hidden < 2:
+            continue  # junk: tiny next to the surrounding candles and only 1x hidden
         if hidden >= params.min_hidden:
             found.append(Found(zone=z, hidden=hidden, forming=forming,
                                testing=v == KILL, touched=touched))

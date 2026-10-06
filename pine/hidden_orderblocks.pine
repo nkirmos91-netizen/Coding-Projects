@@ -25,7 +25,8 @@ indicator("Hidden Orderblocks", shorttitle = "HOB", overlay = true, max_boxes_co
 //         zone is mitigated.
 //       - a wick only into the outer touch buffer           -> allowed, marked touched
 //       - otherwise (any wick or body into it)              -> mitigated
-//   * Junk filter: the body must be at least 0.15x the 14-candle ATR (setting).
+//   * Junk filter: a 1x zone's body must be at least 0.15x the 14-candle ATR
+//     (setting). Zones hidden 2x or more are kept whatever their size.
 // -----------------------------------------------------------------------------
 
 const string G_DET = "Detection"
@@ -35,7 +36,7 @@ float minBodyPct = input.float(10.0, "Min body size (% of candle range)", minval
 bool  freshOnly  = input.bool(true, "Fresh only (hide touched / testing zones)", group = G_DET,
      tooltip = "Only show zones price has never reached into. Off: touched and currently-tested zones are shown and labelled.")
 float minBodyAtr = input.float(0.15, "Min body size (x ATR 14)", minval = 0, step = 0.05, group = G_DET,
-     tooltip = "Skips 'junk' zones whose body is tiny next to the surrounding candles. Body must be at least this multiple of the 14-candle average true range. 0 = off.")
+     tooltip = "Hides 1x 'junk' zones whose body is tiny next to the surrounding candles: the body must be at least this multiple of the 14-candle average true range. Zones hidden 2x or more are always shown. 0 = off.")
 float touchBuf   = input.float(5.0, "Touch buffer (% of body)", minval = 0, maxval = 49, step = 1, group = G_DET,
      tooltip = "A wick may reach this far into the body (from either edge) without mitigating it. The zone is then marked as touched.")
 int   maxTracked = input.int(300, "Max tracked candidates", minval = 50, maxval = 2000, group = G_DET,
@@ -65,6 +66,7 @@ type Zone
     float        bodyPct
     bool         bear
     bool         touched = false
+    bool         small = false
     int          gapDir = 0
     int          hidden = 0
     int          endTime
@@ -150,8 +152,9 @@ if barstate.isconfirmed and bar_index >= 1
     float rng  = high - low
     if rng > 0 and bTop > bBot
         float pct = (bTop - bBot) / rng * 100
-        if pct >= minBodyPct and (na(atr14) or bTop - bBot >= minBodyAtr * atr14)
-            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open))
+        if pct >= minBodyPct
+            bool small = not na(atr14) and bTop - bBot < minBodyAtr * atr14
+            active.push(Zone.new(barIdx = bar_index, openTime = time, top = bTop, bot = bBot, bodyPct = pct, bear = close < open, small = small))
             if active.size() > maxTracked
                 int drop = 0
                 for j = 0 to active.size() - 1
@@ -217,7 +220,9 @@ if barstate.islast
         bool  isBear  = (z.top + z.bot) / 2 > close
         float distPct = isBear ? (z.bot - close) / close * 100 : (close - z.top) / close * 100
         bool  stale   = freshOnly and (touched or (liveIn and not forming))
-        if nHidden >= minHidden and not gapFill and not stale
+        // Junk filter: a body that is tiny next to the surrounding candles only counts once it's 2x+ hidden.
+        bool  junk    = z.small and nHidden < 2
+        if nHidden >= minHidden and not gapFill and not stale and not junk
             if (isBear and showBear) or (not isBear and showBull)
                 color  base   = isBear ? bearCol : bullCol
                 bool   tested = liveIn and not forming

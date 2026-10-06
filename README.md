@@ -20,7 +20,7 @@ For a candidate candle **Z**, the body is the range between its open and close:
    - **Touch buffer** (default 5% of the body height): a wick that only reaches into the outer 5% from either edge is allowed. The zone stays valid but is marked **touched** (yellow border, "touched" in its label).
    - **Fresh only** (default on): touched zones, and zones price is trading into right now, are hidden. Turn it off to see them labelled.
 5. Body quality: tiny bodies with big wicks are filtered out. A body that is about 50% of the candle range is ideal.
-6. Junk filter: the body must be at least **0.15× the 14-candle ATR**, so zones that are tiny next to the surrounding candles are skipped (e.g. BKNG 2W 120.93–121.98, about 0.1×).
+6. Junk filter: a **1x** zone's body must be at least **0.15× the 14-candle ATR**, so 1x zones that are tiny next to the surrounding candles are skipped (e.g. BKNG 2W 120.93–121.98, about 0.1×). Zones hidden **2x or more** are kept whatever their size (e.g. SAND 1M 0.418–0.431, about 0.05×, 2x).
 
 Detection only uses candles from the chart's own timeframe.
 

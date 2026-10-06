@@ -121,3 +121,16 @@ def test_body_through_on_open_candle_is_forming():
                 (0.0705, 0.071, 0.050, 0.052), (0.052, 0.0705, 0.050, 0.0688), (0.06877, 0.0900, 0.06143, 0.0880)])
     f = zone(detect(seq, last_is_live=True), 0.07498)
     assert f and f.forming and f.hidden == 1
+
+
+def test_small_body_kept_when_2x_hidden():
+    # SAND 1M: tiny body (~0.05x ATR) among huge monthly candles, but hidden 2x -> kept.
+    from hobscan.samples import bars
+    lead = [(0.5, 0.8, 0.3, 0.6), (0.6, 0.9, 0.35, 0.4)] * 7  # ranges ~0.5
+    seq = bars(lead + [(0.70, 0.72, 0.40, 0.418), (0.418, 0.437, 0.408, 0.431), (0.431, 0.44, 0.30, 0.33),
+                       (0.33, 0.36, 0.24, 0.25), (0.25, 0.70, 0.24, 0.668), (0.668, 0.70, 0.47, 0.545),
+                       (0.545, 0.56, 0.47, 0.53), (0.53, 0.54, 0.29, 0.31), (0.31, 0.366, 0.25, 0.255)])
+    f = zone(detect(seq), 0.418)
+    assert f and f.hidden == 2
+    # Cut off after the first FVG (1x): the same small body is junk.
+    assert zone(detect(seq[:-3]), 0.418) is None
